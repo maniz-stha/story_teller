@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.pyc
+*.tmp.mp4
+.DS_Store
+*.swp
+samples/*.mp3
+samples/*.mp4

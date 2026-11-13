@@ -1,0 +1,1 @@
+"""Local story video generator."""

@@ -1,0 +1,62 @@
+Write an original fictional story for an AI-narrated TikTok, Instagram Reel, or YouTube Short. The narration is the main attraction; unrelated gameplay will play in the background.
+
+INPUTS
+
+Theme: {theme}
+Target narration duration: {target_duration} seconds
+Narration speed: {narration_speed} words per minute
+Tone: {tone}
+Perspective: {perspective}
+Audience/language: {audience}, conversational {language}
+Optional premise: {premise}
+Recent plots or twists to avoid: {recent}
+Additional plots or twists to avoid: {avoid}
+Story change request: {note}
+Previous evaluation feedback: {feedback}
+
+LENGTH
+Calculate the approximate word target from duration and narration speed: {target_words} words. Stay within 10% of that target. This is a planning estimate; actual text-to-speech duration will vary.
+
+CREATIVE APPROACH
+Privately consider three distinct premises and choose the strongest based on a compelling opening, believable stakes, and an earned ending. Output only the selected story.
+Build the story around a specific character who wants something and faces a meaningful obstacle. Give the protagonist a choice that could cost them something. Vary the conflict, character motives, and resolution from the recent stories provided. When a story change request or previous evaluation feedback is present, address it in the new draft.
+
+STORY STRUCTURE
+Use these beats naturally, without labeling them in the narration:
+
+HOOK — approximately the first 5%
+Open with a specific event, accusation, discovery, or offer that immediately creates a question. Make the hook understandable without background explanation. Avoid generic openings such as “You won’t believe what happened” or “It all started on a normal day.” The story must deliver on what the opening promises.
+
+SETUP AND STAKES — approximately 15%
+Introduce only the people and context needed to follow the conflict. Make clear what the narrator wants and what they could lose. Include one concrete detail that makes the situation feel lived-in.
+
+ESCALATION — approximately 40%
+Develop two or three connected complications. Each complication must change what the narrator understands, increase the stakes, or narrow their options. Reveal information progressively, while keeping the situation easy to follow. Use brief, natural dialogue where it adds tension. Plant a detail that will matter at the ending.
+
+DIFFICULT CHOICE — approximately 15%
+Force the protagonist to act despite a credible personal cost. Let their decision influence what happens next. Avoid having a stranger, coincidence, or sudden authority figure solve everything for them.
+
+PAYOFF — approximately 20%
+Resolve the central conflict clearly. Make the outcome follow from earlier actions and details. A twist is optional: use one only if it improves the story and feels believable. If there is a reveal, it should change the meaning of something viewers already heard. Allow realistic consequences; a satisfying ending does not require everyone to get exactly what they deserve.
+
+CLOSING LINE — approximately 5%
+Finish with a brief line of dialogue, action, or observation that connects to the opening or an earlier detail. End on the story itself. Do not add a moral, generic inspirational quote, or request for likes and follows.
+
+WRITING RULES
+Write for listening: familiar words, natural contractions, and varied sentence lengths. Mix short dramatic lines with flowing sentences so the narration does not sound choppy. Keep the cast small and relationships clear. Show emotion through decisions, behavior, and dialogue. Give opposing characters understandable motives; avoid cartoon villains. Remove filler, repeated explanations, and unnecessary background. Create tension through consequences and uncertainty, not constant shock. Do not hide facts the narrator would naturally mention just to manufacture a twist. Avoid defaulting to secret recordings, surprise inheritances, powerful relatives, instant firings, or convenient evidence. Do not copy an existing Reddit post or present invented events as verified fact. Provide a complete standalone ending, without “Part 2” bait. Use ordinary punctuation suitable for text-to-speech.
+
+Format the narration into paragraphs of 2–4 sentences, separated by blank lines. Do not put every sentence on its own line. Do not include stage directions, timestamps, sound effects, or section labels inside the narration.
+
+The narrator is female by default. Select male only when the story explicitly establishes a male narrator.
+
+FINAL QUALITY CHECK
+Before answering, silently revise until the opening creates a clear reason to keep listening; the stakes matter to this particular character; every paragraph advances the story; the protagonist makes a consequential choice; the ending resolves the hook and uses something established earlier; the plot differs meaningfully from recent stories; and the narration fits the approximate word target.
+
+OUTPUT
+Return only a JSON object matching the provided schema:
+title: A short, intriguing title that does not reveal the ending.
+narration: The complete story, ready for text-to-speech.
+word_count: Count only the narration words.
+estimated_duration_seconds: Estimate from the requested narration speed.
+continuity_note: A one-sentence continuity note summarizing the conflict and resolution for the recent-plots list.
+narrator: female or male, following the narrator rule above.

@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Story Teller</title>
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body>
+  <main>
+    <header><p class="eyebrow">LOCAL VIDEO STUDIO</p><h1>Story Teller</h1><p>Generate a narrated story, review the preview, then export it for manual posting.</p></header>
+    <div id="notice" role="status" aria-live="polite"></div>
+    <div class="grid">
+      <section class="card">
+        <h2>Inputs</h2>
+        <form id="settings">
+          <label>Theme <select name="theme"><option value="random">Random</option><option>workplace drama</option><option>family conflict</option><option>everyday mystery</option><option>betrayal</option><option>wholesome surprise</option><option>other</option></select></label>
+          <label>Custom theme <input name="custom_theme" maxlength="100" placeholder="For Other"></label>
+          <div class="row"><label>Target duration (seconds) <input name="target_duration" type="number" min="15" max="180"></label><label>Words per minute <input name="narration_speed" type="number" min="100" max="300"></label></div>
+          <label>Tone override <input name="tone" maxlength="120" placeholder="Based on theme by default"></label>
+          <label>Perspective <input name="perspective" readonly></label>
+          <label>Audience <input name="audience" maxlength="100"></label>
+          <label>Language <input name="language" readonly></label>
+          <label>Optional premise <textarea name="premise" maxlength="1000" rows="2"></textarea></label>
+          <label>Extra plots or twists to avoid <textarea name="avoid" maxlength="2000" rows="2"></textarea></label>
+          <fieldset><legend>Posting copy for</legend><label><input type="checkbox" name="platforms" value="youtube"> YouTube Shorts</label><label><input type="checkbox" name="platforms" value="instagram"> Instagram Reels</label><label><input type="checkbox" name="platforms" value="tiktok"> TikTok</label></fieldset>
+          <div class="actions"><button type="button" id="save">Save defaults</button><button type="button" class="primary" id="generate">Generate video</button></div>
+        </form>
+        <h2>Background clips</h2>
+        <label class="upload">Upload clip <input type="file" id="clip" accept="video/*"></label>
+        <ul id="clips"></ul>
+      </section>
+      <section class="card review">
+        <h2>Review</h2>
+        <label>Previous runs <select id="runs"><option value="">Select a run</option></select></label>
+        <p id="status">No run selected.</p><button type="button" id="retry">Retry failed run</button>
+        <div class="preview"><video id="video" controls playsinline preload="metadata"></video></div>
+        <h3>Story</h3><h4 id="story-title"></h4><p id="story-meta"></p><p id="story" class="story"></p><p><strong>Continuity note:</strong> <span id="continuity-note"></span></p><p id="evaluation" class="story"></p>
+        <label>Story feedback <textarea id="story-note" rows="2" placeholder="Describe what to change"></textarea></label><button type="button" id="revise-story">Revise story</button>
+        <label>Subtitle position <textarea id="position-note" rows="2" placeholder="Move captions higher, middle, or lower"></textarea></label><button type="button" id="revise-position">Change position</button>
+        <h3>Posting copy</h3><div id="copy"></div><button type="button" id="save-copy">Save copy edits</button>
+        <div class="actions"><button type="button" class="primary" id="approve">Approve</button><a id="download" href="#" download>Download approved video</a></div>
+      </section>
+    </div>
+  </main>
+  <script src="/static/app.js" defer></script>
+</body>
+</html>

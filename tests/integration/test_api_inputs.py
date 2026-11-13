@@ -1,0 +1,53 @@
+import subprocess
+from pathlib import Path
+
+from fastapi.testclient import TestClient
+
+from story_teller.app import create_app
+from story_teller.service import inspect_video
+
+
+def test_settings_defaults_and_other_validation(tmp_path: Path):
+    client = TestClient(create_app(tmp_path))
+    settings = client.get("/api/v1/settings").json()
+    assert settings["theme"] == "random"
+    assert settings["target_duration"] == 90
+    assert client.put("/api/v1/settings", json={**settings, "theme": "other"}).status_code == 422
+    assert client.put("/api/v1/settings", json={**settings, "theme": "other", "custom_theme": "Lost pets"}).status_code == 200
+
+
+def test_clip_upload_and_deactivation(tmp_path: Path):
+    clip = tmp_path / "clip.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=320x240:d=1", "-c:v", "libx264", "-y", str(clip)], check=True)
+    client = TestClient(create_app(tmp_path / "data"))
+    with clip.open("rb") as file:
+        uploaded = client.post("/api/v1/clips", files={"file": ("clip.mp4", file, "video/mp4")})
+    assert uploaded.status_code == 201
+    clip_id = uploaded.json()["id"]
+    assert len(client.get("/api/v1/clips").json()) == 1
+    assert client.delete(f"/api/v1/clips/{clip_id}").status_code == 204
+    assert client.get("/api/v1/clips").json() == []
+
+
+def test_corrupt_clip_and_hostile_origin_rejected(tmp_path: Path):
+    client = TestClient(create_app(tmp_path))
+    assert client.post("/api/v1/clips", files={"file": ("bad.mp4", b"not video", "video/mp4")}).status_code == 422
+    assert client.get("/api/v1/settings", headers={"Origin": "https://evil.example"}).status_code == 403
+    assert client.get("/api/v1/settings", headers={"Host": "evil.example"}).status_code == 400
+
+
+def test_clip_with_valid_header_but_truncated_frames_is_rejected(tmp_path: Path):
+    source = tmp_path / "source.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "testsrc2=size=320x240:duration=2", "-c:v", "libx264", "-movflags", "+faststart", "-y", str(source)], check=True)
+    damaged = source.read_bytes()
+    source.write_bytes(damaged[:len(damaged) // 2])
+    client = TestClient(create_app(tmp_path / "data"))
+    with source.open("rb") as file:
+        result = client.post("/api/v1/clips", files={"file": ("source.mp4", file, "video/mp4")})
+    assert result.status_code == 422
+
+
+def test_clip_uses_video_stream_duration_when_source_audio_runs_longer(tmp_path: Path):
+    clip = tmp_path / "uneven.mp4"
+    subprocess.run(["ffmpeg", "-loglevel", "error", "-f", "lavfi", "-i", "color=c=blue:s=320x240:d=1", "-f", "lavfi", "-i", "sine=frequency=220:duration=2", "-map", "0:v:0", "-map", "1:a:0", "-c:v", "libx264", "-c:a", "aac", "-y", str(clip)], check=True)
+    assert abs(inspect_video(clip)[0] - 1) < .05
