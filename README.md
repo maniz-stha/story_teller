@@ -29,6 +29,8 @@ Open `http://127.0.0.1:8765` on the same computer. Upload at least one backgroun
 
 The default narration pace is 260 words per minute. Final duration follows the accepted script's word count, so a 90-second target may finish a few seconds early or late while preserving the chosen pace. The background video is trimmed to the final audio length.
 
+To remove an old story, select it under **Previous runs** and choose **Delete selected story**. Confirming removes that run, all its revisions, and its generated files. Uploaded background clips and other runs remain available. A queued or generating run must finish or fail before it can be deleted. Back up the data folder first if you may need the story later.
+
 The CLI uses the same local API:
 
 ```sh
