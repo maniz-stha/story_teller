@@ -12,13 +12,10 @@ class PostingCopy(BaseModel):
     hashtags: list[Annotated[str, Field(min_length=2, max_length=50, pattern=r"^#[A-Za-z0-9_]+$")]] = Field(min_length=1, max_length=10)
 
 
-def generate_posting_copy(story: StoryDraft, platforms: list[str], llm: Ollama) -> dict[str, PostingCopy]:
-    return {
-        platform: llm.structured(
-            f"Create a short title, caption, and relevant hashtags for {platform}. "
-            "Avoid spoilers and false claims. Each hashtag starts with # and contains no spaces. Return JSON only. "
-            f"Story: {story.script}",
-            PostingCopy,
-        )
-        for platform in platforms
-    }
+def generate_posting_copy(story: StoryDraft, llm: Ollama) -> PostingCopy:
+    return llm.structured(
+        "Create one short title, caption, and relevant hashtags for manual posting on short-video platforms. "
+        "Avoid spoilers and false claims. Each hashtag starts with # and contains no spaces. Return JSON only. "
+        f"Story: {story.script}",
+        PostingCopy,
+    )

@@ -12,7 +12,6 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .storage import migrate, open_db, resolve_artifact
 
 THEMES = ("workplace drama", "family conflict", "everyday mystery", "betrayal", "wholesome surprise")
-PLATFORMS = ("youtube", "instagram", "tiktok")
 
 
 class Settings(BaseModel):
@@ -27,7 +26,6 @@ class Settings(BaseModel):
     language: str = "English"
     premise: str = Field(default="", max_length=1000)
     avoid: str = Field(default="", max_length=2000)
-    platforms: list[str] = Field(default_factory=lambda: list(PLATFORMS))
 
     @model_validator(mode="after")
     def valid_choices(self) -> "Settings":
@@ -37,8 +35,6 @@ class Settings(BaseModel):
             raise ValueError("Custom theme is required")
         if self.perspective != "first person" or self.language != "English":
             raise ValueError("Only first-person English is validated")
-        if not self.platforms or len(set(self.platforms)) != len(self.platforms) or any(p not in PLATFORMS for p in self.platforms):
-            raise ValueError("Invalid platform selection")
         return self
 
 
@@ -50,7 +46,11 @@ def connect(root: Path) -> sqlite3.Connection:
 
 def get_settings(conn: sqlite3.Connection) -> Settings:
     row = conn.execute("SELECT value FROM settings WHERE key='defaults'").fetchone()
-    return Settings.model_validate_json(row[0]) if row else Settings()
+    if not row:
+        return Settings()
+    data = json.loads(row[0])
+    data.pop("platforms", None)
+    return Settings.model_validate(data)
 
 
 def save_settings(conn: sqlite3.Connection, settings: Settings) -> None:
