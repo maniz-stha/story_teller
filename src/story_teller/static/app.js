@@ -20,6 +20,8 @@ function payload() {
     target_duration: Number(form.target_duration.value), narration_speed: Number(form.narration_speed.value),
     tone: form.tone.value || null, perspective: form.perspective.value, audience: form.audience.value,
     language: form.language.value, premise: form.premise.value, avoid: form.avoid.value,
+    writing_model: form.writing_model.value, evaluation_model: form.evaluation_model.value,
+    posting_model: form.posting_model.value,
     platforms: [...form.querySelectorAll('input[name="platforms"]:checked')].map(input => input.value)
   };
 }

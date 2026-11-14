@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from .story import Ollama, StoryDraft
+from .story import Ollama, OpenAI, StoryDraft
 
 
 class PostingCopy(BaseModel):
@@ -12,7 +12,7 @@ class PostingCopy(BaseModel):
     hashtags: list[Annotated[str, Field(min_length=2, max_length=50, pattern=r"^#[A-Za-z0-9_]+$")]] = Field(min_length=1, max_length=10)
 
 
-def generate_posting_copy(story: StoryDraft, platforms: list[str], llm: Ollama) -> dict[str, PostingCopy]:
+def generate_posting_copy(story: StoryDraft, platforms: list[str], llm: Ollama | OpenAI) -> dict[str, PostingCopy]:
     return {
         platform: llm.structured(
             f"Create a short title, caption, and relevant hashtags for {platform}. "

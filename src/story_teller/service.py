@@ -13,6 +13,7 @@ from .storage import migrate, open_db, resolve_artifact
 
 THEMES = ("workplace drama", "family conflict", "everyday mystery", "betrayal", "wholesome surprise")
 PLATFORMS = ("youtube", "instagram", "tiktok")
+MODELS = ("qwen3:4b-instruct", "gemma4:12b", "gpt-6-luna", "gpt-6.1-terra")
 
 
 class Settings(BaseModel):
@@ -28,6 +29,9 @@ class Settings(BaseModel):
     premise: str = Field(default="", max_length=1000)
     avoid: str = Field(default="", max_length=2000)
     platforms: list[str] = Field(default_factory=lambda: list(PLATFORMS))
+    writing_model: str = "gemma4:12b"
+    evaluation_model: str = "gemma4:12b"
+    posting_model: str = "qwen3:4b-instruct"
 
     @model_validator(mode="after")
     def valid_choices(self) -> "Settings":
@@ -39,6 +43,8 @@ class Settings(BaseModel):
             raise ValueError("Only first-person English is validated")
         if not self.platforms or len(set(self.platforms)) != len(self.platforms) or any(p not in PLATFORMS for p in self.platforms):
             raise ValueError("Invalid platform selection")
+        if any(model not in MODELS for model in (self.writing_model, self.evaluation_model, self.posting_model)):
+            raise ValueError("Invalid model selection")
         return self
 
 

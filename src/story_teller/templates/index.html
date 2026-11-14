@@ -23,6 +23,9 @@
           <label>Language <input name="language" readonly></label>
           <label>Optional premise <textarea name="premise" maxlength="1000" rows="2"></textarea></label>
           <label>Extra plots or twists to avoid <textarea name="avoid" maxlength="2000" rows="2"></textarea></label>
+          <label>Writing model <select name="writing_model"><option value="qwen3:4b-instruct">qwen3:4b-instruct · Ollama</option><option value="gemma4:12b">gemma4:12b · Ollama</option><option value="gpt-6-luna">gpt-6-luna · OpenAI</option><option value="gpt-6.1-terra">gpt-6.1-terra · OpenAI</option></select></label>
+          <label>Evaluation model <select name="evaluation_model"><option value="qwen3:4b-instruct">qwen3:4b-instruct · Ollama</option><option value="gemma4:12b">gemma4:12b · Ollama</option><option value="gpt-6-luna">gpt-6-luna · OpenAI</option><option value="gpt-6.1-terra">gpt-6.1-terra · OpenAI</option></select></label>
+          <label>Posting copy model <select name="posting_model"><option value="qwen3:4b-instruct">qwen3:4b-instruct · Ollama</option><option value="gemma4:12b">gemma4:12b · Ollama</option><option value="gpt-6-luna">gpt-6-luna · OpenAI</option><option value="gpt-6.1-terra">gpt-6.1-terra · OpenAI</option></select></label>
           <fieldset><legend>Posting copy for</legend><label><input type="checkbox" name="platforms" value="youtube"> YouTube Shorts</label><label><input type="checkbox" name="platforms" value="instagram"> Instagram Reels</label><label><input type="checkbox" name="platforms" value="tiktok"> TikTok</label></fieldset>
           <div class="actions"><button type="button" id="save">Save defaults</button><button type="button" class="primary" id="generate">Generate video</button></div>
         </form>

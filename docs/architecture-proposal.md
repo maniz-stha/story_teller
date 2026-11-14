@@ -61,7 +61,7 @@ The repository currently contains the PRD, empty `requirements.txt`, and experim
 7. **Posting-copy module:** creates and validates text for the three selected platforms after the story is stable. Copy is editable in review; there is no upload integration in the MVP.
 8. **Local web layer:** settings, clip library, run status, video preview, story notes, subtitle-position notes, approval, and download. Long-running work is never performed inside an HTTP request.
 
-Keep the dependency direction simple: `web/cli → application service → persistence/pipeline → Ollama/TTS/ASR/FFmpeg`. Media stages should not know about HTTP or HTML. Avoid generic plugin interfaces until a second concrete engine is needed.
+Keep the dependency direction simple: `web/cli → application service → persistence/pipeline → Ollama or OpenAI/TTS/ASR/FFmpeg`. Model IDs are validated settings, frozen into each run's input JSON, and selected separately for writing, evaluation, and posting copy. Media stages should not know about HTTP or HTML. Avoid generic plugin interfaces until a second concrete engine is needed.
 
 ### Validation at each boundary
 
