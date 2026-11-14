@@ -19,13 +19,22 @@ function payload() {
     theme: form.theme.value, custom_theme: form.custom_theme.value || null,
     target_duration: Number(form.target_duration.value), narration_speed: Number(form.narration_speed.value),
     tone: form.tone.value || null, perspective: form.perspective.value, audience: form.audience.value,
-    language: form.language.value, premise: form.premise.value, avoid: form.avoid.value
+    language: form.language.value, premise: form.premise.value, avoid: form.avoid.value,
+    writing_model: form.writing_model.value, evaluation_model: form.evaluation_model.value,
+    posting_model: form.posting_model.value
   };
 }
 function loadSettings(data) {
   const form = $('#settings');
   for (const [key, value] of Object.entries(data)) {
     if (form[key]) form[key].value = value ?? '';
+  }
+}
+async function models() {
+  const options = await request('/models');
+  for (const name of ['writing_model', 'evaluation_model', 'posting_model']) {
+    $(`#settings [name="${name}"]`).replaceChildren(...options.map(item =>
+      new Option(`${item.model} · ${item.provider === 'openai' ? 'OpenAI' : item.provider[0].toUpperCase() + item.provider.slice(1)}`, item.id)));
   }
 }
 async function clips() {
@@ -106,5 +115,5 @@ $('#delete-run').onclick = () => {
   });
 };
 $('#save-copy').onclick = () => act(async () => { const section = $('.copy-card'); const field = key => section.querySelector(`[data-field="${key}"]`).value; const copy = {title:field('title'),caption:field('caption'),hashtags:field('hashtags').split(/\s+/).filter(Boolean)}; await request(`/runs/${currentRun}/revisions/${currentRevision}/posting-copy`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(copy)}); });
-Promise.all([request('/settings'),clips(),runs()]).then(([settings]) => loadSettings(settings)).catch(error => notice(error.message));
+Promise.all([request('/settings'),models(),clips(),runs()]).then(([settings]) => loadSettings(settings)).catch(error => notice(error.message));
 setInterval(() => refresh().catch(error => notice(error.message)),3000);

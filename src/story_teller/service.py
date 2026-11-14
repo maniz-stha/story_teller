@@ -15,6 +15,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .storage import migrate, open_db, resolve_artifact
 
 THEMES = ("workplace drama", "family conflict", "everyday mystery", "betrayal", "wholesome surprise")
+MODELS = {
+    "ollama": ("qwen3:4b-instruct", "gemma4:12b"),
+    "openai": ("gpt-6-luna", "gpt-6.1-terra"),
+}
+
+
+def selected_model(value: str) -> tuple[str, str]:
+    provider, _, model = value.partition("/")
+    if model not in MODELS.get(provider, ()):
+        raise ValueError("Invalid model selection or provider")
+    return provider, model
 
 
 class Settings(BaseModel):
@@ -29,6 +40,9 @@ class Settings(BaseModel):
     language: str = "English"
     premise: str = Field(default="", max_length=1000)
     avoid: str = Field(default="", max_length=2000)
+    writing_model: str = "ollama/gemma4:12b"
+    evaluation_model: str = "ollama/gemma4:12b"
+    posting_model: str = "ollama/qwen3:4b-instruct"
 
     @model_validator(mode="after")
     def valid_choices(self) -> "Settings":
@@ -38,6 +52,8 @@ class Settings(BaseModel):
             raise ValueError("Custom theme is required")
         if self.perspective != "first person" or self.language != "English":
             raise ValueError("Only first-person English is validated")
+        for selection in (self.writing_model, self.evaluation_model, self.posting_model):
+            selected_model(selection)
         return self
 
 

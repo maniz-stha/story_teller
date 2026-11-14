@@ -1,3 +1,4 @@
+import os
 import re
 from pathlib import Path
 from typing import Any, Literal, TypeVar
@@ -58,6 +59,64 @@ class Ollama:
         raise ValueError(f"Ollama did not return valid {schema.__name__}: {last_error}")
 
 
+def openai_api_key() -> str | None:
+    if key := os.environ.get("OPENAI_API_KEY", "").strip():
+        return key
+    for dotenv in (Path(__file__).resolve().parents[2] / ".env", Path.cwd() / ".env"):
+        if dotenv.is_file():
+            for line in dotenv.read_text(encoding="utf-8").splitlines():
+                name, _, value = line.partition("=")
+                if name.strip() == "OPENAI_API_KEY":
+                    return value.strip().strip('"\'') or None
+    return None
+
+
+class OpenAI:
+    def __init__(self, model: str):
+        self.model = model
+
+    def structured(self, prompt: str, schema: type[T]) -> T:
+        key = openai_api_key()
+        if not key:
+            raise ValueError("OPENAI_API_KEY is required for the selected OpenAI model; set it in .env")
+        # OpenAI strict schemas omit Pydantic's validation keywords; Pydantic checks the result.
+        def strict_shape(value: Any) -> Any:
+            if isinstance(value, dict):
+                return {k: strict_shape(v) for k, v in value.items() if k not in {
+                    "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum",
+                    "exclusiveMaximum", "minItems", "maxItems", "pattern", "default",
+                }}
+            if isinstance(value, list):
+                return [strict_shape(item) for item in value]
+            return value
+
+        last_error: Exception | None = None
+        for _ in range(2):
+            try:
+                response = httpx.post(
+                    "https://api.openai.com/v1/responses",
+                    headers={"Authorization": f"Bearer {key}"},
+                    json={
+                        "model": self.model, "input": prompt, "store": False,
+                        "text": {"format": {"type": "json_schema", "name": schema.__name__.lower(),
+                                            "schema": strict_shape(schema.model_json_schema()), "strict": True}},
+                    },
+                    timeout=240,
+                )
+                response.raise_for_status()
+                body = response.json()
+                if body["status"] != "completed":
+                    raise ValueError(f"OpenAI response status: {body['status']}")
+                content = [item for output in body["output"] if output.get("type") == "message"
+                           for item in output["content"] if item.get("type") == "output_text"]
+                if not content:
+                    raise ValueError("OpenAI returned no structured text (possibly refused)")
+                return schema.model_validate_json(content[0]["text"])
+            except (httpx.HTTPError, ValueError, KeyError, TypeError, IndexError) as exc:
+                last_error = exc
+        raise ValueError(f"OpenAI did not return valid {schema.__name__}: {last_error}")
+
+
 def validate_story(draft: StoryDraft, target_words: int, recent: list[str]) -> None:
     words = draft.script.split()
     if not 0.9 * target_words <= len(words) <= 1.1 * target_words:
@@ -71,7 +130,7 @@ def validate_story(draft: StoryDraft, target_words: int, recent: list[str]) -> N
             raise ValueError("Story repeats a recent plot")
 
 
-def generate_story(inputs: dict[str, Any], recent: list[str], llm: Ollama, note: str | None = None, feedback: str | None = None) -> StoryDraft:
+def generate_story(inputs: dict[str, Any], recent: list[str], llm: Ollama | OpenAI, note: str | None = None, feedback: str | None = None) -> StoryDraft:
     target_words = round(int(inputs["target_duration"]) * int(inputs["narration_speed"]) / 60)
     prompt = (Path(__file__).with_name("story_prompt.txt").read_text(encoding="utf-8").format(
         theme=inputs.get("theme", "random"),
@@ -92,7 +151,7 @@ def generate_story(inputs: dict[str, Any], recent: list[str], llm: Ollama, note:
     return StoryDraft(script=result.narration, summary=result.continuity_note, narrator=result.narrator, title=result.title)
 
 
-def evaluate_story(draft: StoryDraft, inputs: dict[str, object], llm: Ollama) -> Evaluation:
+def evaluate_story(draft: StoryDraft, inputs: dict[str, object], llm: Ollama | OpenAI) -> Evaluation:
     prompt = (
         "Evaluate this short story against the requested theme and the natural six-beat shape: "
         "specific hook, setup with personal stakes, connected escalation, consequential choice "

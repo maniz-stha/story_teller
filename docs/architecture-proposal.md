@@ -8,7 +8,7 @@
 
 ## 1. Architectural stance
 
-Build one local Python application with a defined, restartable pipeline. The web UI and CLI are two ways to submit and inspect the same jobs. One worker process runs one generation job at a time. SQLite stores state; files store large media. Only story writing, story evaluation, revision, and posting copy use Ollama. Audio, timing, and rendering are explicit tools, not autonomous agents.
+Build one local Python application with a defined, restartable pipeline. The web UI and CLI are two ways to submit and inspect the same jobs. One worker process runs one generation job at a time. SQLite stores state; files store large media. Story writing, evaluation, revision, and posting copy use the selected Ollama or OpenAI models. Audio, timing, and rendering are explicit tools, not autonomous agents.
 
 ```mermaid
 flowchart LR
@@ -19,6 +19,7 @@ flowchart LR
     WORKER[Single worker process] <--> DB
     WORKER <--> FILES
     WORKER --> OLLAMA[Local Ollama]
+    WORKER --> OPENAI[OpenAI API]
     WORKER --> TTS[Local TTS]
     WORKER --> ASR[Local word timing]
     WORKER --> FFMPEG[FFmpeg / ffprobe]
@@ -35,7 +36,7 @@ The app is intended for one machine and one user. There is no cloud deployment, 
 | CLI | Python standard-library `argparse`, calling the same loopback HTTP API as the web UI | One validation and job-submission path. The local app must be running before CLI commands are used; a standalone CLI would require a second lifecycle path. |
 | Durable jobs | SQLite queue plus one dedicated worker **process** | Keeps long model and FFmpeg work out of HTTP requests. A single worker avoids CPU/GPU contention. More setup than an in-process task, but jobs survive web restarts. FastAPI warns that its lightweight background tasks are not suited to heavy computation. [FastAPI background-task guidance](https://fastapi.tiangolo.com/tutorial/background-tasks/) |
 | State | Standard-library `sqlite3`, short transactions, versioned SQL migrations, WAL mode | Small, inspectable schema without an ORM or database server. WAL lets the UI read while the worker writes, though SQLite still has one writer at a time. [SQLite WAL documentation](https://www.sqlite.org/wal.html) |
-| Story and evaluation | Ollama local HTTP API with Pydantic v2 models for structured responses, followed by deterministic application checks | Use each model's JSON Schema as Ollama's `format`, then validate the returned JSON with Pydantic. No agent framework is needed for a fixed sequence; schema validity alone cannot establish story quality. Store model name, parameters, prompt version, and evaluation reasons for each run. [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs) |
+| Story and evaluation | Selected Ollama or OpenAI model with Pydantic v2 validation, followed by deterministic application checks | Use structured responses, then validate the returned JSON with Pydantic. No agent framework is needed for a fixed sequence; schema validity alone cannot establish story quality. Store model name, prompt version, and evaluation reasons for each run. [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs) |
 | Narration | Local Chatterbox as the first engine to benchmark, using `samples/female_voice_reference.mp3` and `samples/male_voice_reference.mp3` | These user-supplied references match the female/male rule. Chatterbox is archived and unmaintained, so the exact model/version is a release gate, not an assumed production choice. [Chatterbox project status](https://github.com/resemble-ai/chatterbox/blob/master/README.md) |
 | Word timing | Local `faster-whisper` on the **final** audio | It supports word timestamps; recognized text must be compared with the script before subtitle creation. A stronger aligner is an option only if timings fail acceptance checks. [faster-whisper documentation](https://github.com/SYSTRAN/faster-whisper) |
 | Media | FFmpeg and ffprobe as subprocesses, with argument arrays and fixed filter templates | Mature tools for trim/loop/crop/mix/burn-in. Check exit status and inspect produced media. No arbitrary user text enters shell commands. [FFmpeg filters](https://www.ffmpeg.org/ffmpeg-filters.html) |
@@ -61,7 +62,7 @@ The repository currently contains the PRD, empty `requirements.txt`, and experim
 7. **Posting-copy module:** creates and validates one shared text set after the story is stable. Copy is editable in review; there is no upload integration in the MVP.
 8. **Local web layer:** settings, clip library, run status, video preview, story notes, subtitle-position notes, approval, and download. Long-running work is never performed inside an HTTP request.
 
-Keep the dependency direction simple: `web/cli → application service → persistence/pipeline → Ollama/TTS/ASR/FFmpeg`. Media stages should not know about HTTP or HTML. Avoid generic plugin interfaces until a second concrete engine is needed.
+Keep the dependency direction simple: `web/cli → application service → persistence/pipeline → Ollama or OpenAI/TTS/ASR/FFmpeg`. Model IDs are validated settings, frozen into each run's input JSON, and selected separately for writing, evaluation, and posting copy. Media stages should not know about HTTP or HTML. Avoid generic plugin interfaces until a second concrete engine is needed.
 
 ### Validation at each boundary
 

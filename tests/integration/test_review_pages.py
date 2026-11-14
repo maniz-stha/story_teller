@@ -48,6 +48,20 @@ vm.runInContext(source,context);
     assert result.returncode == 0, result.stderr
 
 
+def test_model_selectors_load_provider_labeled_options():
+    script = r"""
+const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
+const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
+const selects = new Map();
+function select(name) { if (!selects.has(name)) selects.set(name,{replaceChildren(...options){this.options=options}}); return selects.get(name); }
+const context = vm.createContext({document:{querySelector:select},Option:function(label,value){return {label,value}},setInterval(){},fetch:async()=>({ok:true,status:200,json:async()=>[{id:'ollama/gemma4:12b',provider:'ollama',model:'gemma4:12b'},{id:'openai/gpt-6-luna',provider:'openai',model:'gpt-6-luna'}]})});
+vm.runInContext(source,context);
+(async()=>{await vm.runInContext('models()',context); for(const name of ['writing_model','evaluation_model','posting_model']) { const options=select(`#settings [name="${name}"]`).options; assert.equal(options[1].value,'openai/gpt-6-luna'); assert.match(options[1].label,/OpenAI/); }})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+    result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
 def test_run_delete_requires_confirmation_and_clears_selection(tmp_path: Path):
     html = TestClient(create_app(tmp_path)).get("/").text
     assert 'id="delete-run"' in html

@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from .posting import PostingCopy
 from .service import (
+    MODELS,
     Settings,
     add_clip,
     approve_revision,
@@ -36,6 +37,11 @@ class ApprovalRequest(BaseModel):
 
 def router(root: Path) -> APIRouter:
     api = APIRouter(prefix="/api/v1")
+
+    @api.get("/models")
+    def list_models() -> list[dict[str, str]]:
+        return [{"id": f"{provider}/{model}", "provider": provider, "model": model}
+                for provider, models in MODELS.items() for model in models]
 
     @api.get("/settings")
     def read_settings() -> Settings:

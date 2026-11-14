@@ -15,7 +15,7 @@ Generate short, first-person story videos from a small set of inputs, with narra
 ### Phase-one goals
 
 - Start a generation on demand from either a command line or a local web interface.
-- Generate original stories using a local Ollama model, then evaluate and automatically revise weak drafts.
+- Generate original stories using a selected Ollama or OpenAI model, then evaluate and automatically revise weak drafts.
 - Produce one portrait video with local narration, burned-in subtitles, and a randomly chosen uploaded background clip.
 - Allow feedback on the story or subtitle position, rebuild the affected stages, and require approval of the latest preview.
 - Save the approved video and one shared title, caption, and hashtag set for manual posting.
@@ -33,7 +33,7 @@ Generate short, first-person story videos from a small set of inputs, with narra
 
 - One user on their own computer. Runs begin only when that computer is on and the user initiates them.
 - The same pipeline serves the command line and local web interface; drafts and settings are shared. The proposed web default is accessible only on the owner's computer, with no login for this single-user phase.
-- Story writing and evaluation run through a local Ollama model. Narration, subtitle timing, and rendering run locally. The code in `samples/` is experimental reference material, not a finished implementation.
+- Story writing and evaluation default to local Ollama models, with optional OpenAI models selected independently for writing, evaluation, and posting copy. Narration, subtitle timing, and rendering run locally. The code in `samples/` is experimental reference material, not a finished implementation.
 - The app stores uploaded clips, run settings, story versions, previews, approvals, and final outputs locally.
 
 ## 4. Inputs and defaults

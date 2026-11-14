@@ -11,6 +11,8 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .api import router
+from .service import Settings, connect, get_settings, selected_model
+from .story import openai_api_key
 
 
 @dataclass(frozen=True)
@@ -21,17 +23,26 @@ class Check:
 
 
 def check_environment(data_root: Path | None = None) -> list[Check]:
-    checks = [Check(name, bool(shutil.which(name)), f"{name} executable {'found' if shutil.which(name) else 'is required'}") for name in ("ollama", "ffmpeg", "ffprobe")]
+    settings = Settings()
+    if data_root and (data_root / "story_teller.sqlite3").exists():
+        with connect(data_root) as conn:
+            settings = get_settings(conn)
+    selected = {selected_model(value) for value in (settings.writing_model, settings.evaluation_model, settings.posting_model)}
+    local = {model for provider, model in selected if provider == "ollama"}
+    checks = [Check(name, bool(shutil.which(name)), f"{name} executable {'found' if shutil.which(name) else 'is required'}") for name in (("ollama",) if local else ()) + ("ffmpeg", "ffprobe")]
     checks.append(Check("python", sys.version_info[:2] == (3, 11), f"Python {sys.version_info.major}.{sys.version_info.minor} active; 3.11 required"))
-    try:
-        response = httpx.get("http://127.0.0.1:11434/api/tags", timeout=2)
-        response.raise_for_status()
-        installed = {model["name"] for model in response.json()["models"]}
-        required = {"qwen3:4b-instruct", "gemma4:12b"}
-        present = required <= installed
-        checks.append(Check("ollama_model", present, "Writer and evaluator models installed" if present else "qwen3:4b-instruct and gemma4:12b must be installed"))
-    except (httpx.HTTPError, ValueError, KeyError):
-        checks.append(Check("ollama_model", False, "Ollama service is unavailable"))
+    if local:
+        try:
+            response = httpx.get("http://127.0.0.1:11434/api/tags", timeout=2)
+            response.raise_for_status()
+            installed = {model["name"] for model in response.json()["models"]}
+            missing = local - installed
+            checks.append(Check("ollama_model", not missing, "Selected Ollama models installed" if not missing else "Missing Ollama models: " + ", ".join(sorted(missing))))
+        except (httpx.HTTPError, ValueError, KeyError):
+            checks.append(Check("ollama_model", False, "Ollama service is unavailable"))
+    if any(provider == "openai" for provider, _ in selected):
+        has_key = bool(openai_api_key())
+        checks.append(Check("openai_api_key", has_key, "OPENAI_API_KEY found" if has_key else "Set OPENAI_API_KEY in an ignored .env file"))
     for narrator in ("female", "male"):
         source = Path(__file__).resolve().parents[2] / "samples" / f"{narrator}_voice_reference.mp3"
         checks.append(Check(f"{narrator}_voice", source.is_file(), str(source)))
