@@ -33,3 +33,47 @@ def test_review_page_has_story_output_fields(tmp_path: Path):
     assert 'id="story-title"' in html
     assert 'id="story-meta"' in html
     assert 'id="continuity-note"' in html
+
+
+def test_runs_dropdown_uses_story_title_with_theme_fallback():
+    script = r"""
+const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
+const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
+const select = {value:'',replaceChildren(...options){this.options=options}};
+const context = vm.createContext({document:{querySelector:selector=>selector==='#runs'?select:{}},Option:function(label,value){return {label,value}},setInterval(){},fetch:async()=>({ok:true,status:200,json:async()=>[{id:'123456789',title:'My manager took my idea',theme:'workplace drama',status:'approved'},{id:'abcdefghi',title:null,theme:'family conflict',status:'queued'}]})});
+vm.runInContext(source,context);
+(async()=>{await vm.runInContext('runs()',context); assert.match(select.options[1].label,/My manager took my idea/); assert.match(select.options[2].label,/family conflict/);})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+    result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_model_selectors_load_provider_labeled_options():
+    script = r"""
+const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
+const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
+const selects = new Map();
+function select(name) { if (!selects.has(name)) selects.set(name,{replaceChildren(...options){this.options=options}}); return selects.get(name); }
+const context = vm.createContext({document:{querySelector:select},Option:function(label,value){return {label,value}},setInterval(){},fetch:async()=>({ok:true,status:200,json:async()=>[{id:'ollama/gemma4:12b',provider:'ollama',model:'gemma4:12b'},{id:'openai/gpt-6-luna',provider:'openai',model:'gpt-6-luna'}]})});
+vm.runInContext(source,context);
+(async()=>{await vm.runInContext('models()',context); for(const name of ['writing_model','evaluation_model','posting_model']) { const options=select(`#settings [name="${name}"]`).options; assert.equal(options[1].value,'openai/gpt-6-luna'); assert.match(options[1].label,/OpenAI/); }})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+    result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
+def test_run_delete_requires_confirmation_and_clears_selection(tmp_path: Path):
+    html = TestClient(create_app(tmp_path)).get("/").text
+    assert 'id="delete-run"' in html
+    script = r"""
+const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
+const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
+const elements = new Map();
+function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'old',value:'',src:'old',href:'old',disabled:false,replaceChildren(){this.cleared=true},removeAttribute(key){this[key]=''},load(){},querySelectorAll(){return []}}); return elements.get(id); }
+let confirmed = false; let deletes = 0;
+const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},confirm:()=>confirmed,setInterval(){},fetch:async (url,options={})=>{if(options.method==='DELETE') deletes++; return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>[]}}});
+vm.runInContext(source,context); vm.runInContext("currentRun='abc'",context);
+(async()=>{await element('#delete-run').onclick(); assert.equal(deletes,0); confirmed=true; await element('#delete-run').onclick(); assert.equal(deletes,1); assert.equal(vm.runInContext('currentRun',context),null); assert.equal(element('#video').src,''); assert.equal(element('#story').textContent,''); assert.equal(element('#runs').value,'');})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+    result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

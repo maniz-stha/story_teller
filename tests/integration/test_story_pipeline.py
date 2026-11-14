@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 
 from story_teller.pipeline import run_stage
+from story_teller.posting import PostingCopy
 from story_teller.service import connect, create_run
 from story_teller.speech import AudioInfo
 from story_teller.story import Evaluation, StoryDraft
@@ -27,11 +28,11 @@ def test_writing_and_evaluation_persist_version(tmp_path: Path, monkeypatch):
         saved = conn.execute("SELECT story,evaluation_json,model_info_json FROM revisions WHERE id=?", (revision["id"],)).fetchone()
         assert saved["story"].startswith("I found")
         assert '"pass":true' in saved["evaluation_json"]
-        assert json.loads(saved["model_info_json"])["writer"] == "gemma4:12b"
+        assert json.loads(saved["model_info_json"])["writer"] == "ollama/gemma4:12b"
         assert json.loads(saved["model_info_json"])["story_title"] == "The hidden letter"
         assert json.loads(saved["model_info_json"])["word_count"] == 390
         assert json.loads(saved["model_info_json"])["estimated_duration_seconds"] == 90
-        assert json.loads(saved["model_info_json"])["evaluator"] == "gemma4:12b"
+        assert json.loads(saved["model_info_json"])["evaluator"] == "ollama/gemma4:12b"
 
 
 def test_rejected_story_stops_before_narration_and_keeps_feedback(tmp_path: Path, monkeypatch):
@@ -133,9 +134,9 @@ def test_each_stage_uses_its_frozen_model_and_revisions_use_writer(tmp_path: Pat
     with connect(tmp_path) as conn:
         conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES('c','clip','sha',1,320,240)")
         conn.commit()
-        run_id = create_run(conn, {"writing_model": "gpt-6-luna",
-                                   "evaluation_model": "gemma4:12b",
-                                   "posting_model": "gpt-6.1-terra"}, 1)
+        run_id = create_run(conn, {"writing_model": "openai/gpt-6-luna",
+                                   "evaluation_model": "ollama/gemma4:12b",
+                                   "posting_model": "openai/gpt-6.1-terra"}, 1)
         run = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
         revision = conn.execute("SELECT * FROM revisions WHERE id=?", (run["current_revision_id"],)).fetchone()
         draft = StoryDraft(script="I found a hidden letter. " * 78,
@@ -152,9 +153,9 @@ def test_each_stage_uses_its_frozen_model_and_revisions_use_writer(tmp_path: Pat
                                               "coherence": 4, "ending": 4,
                                               "resolved": True, "reasons": ["Revise"]})
 
-        def copy(draft, platforms, llm):
+        def copy(draft, llm):
             seen.append(("copy", llm.model))
-            return {}
+            return PostingCopy(title="The hidden letter", caption="A letter changed everything", hashtags=["#story"])
 
         monkeypatch.setattr("story_teller.pipeline.generate_story", write)
         monkeypatch.setattr("story_teller.pipeline.evaluate_story", evaluate)
@@ -164,7 +165,9 @@ def test_each_stage_uses_its_frozen_model_and_revisions_use_writer(tmp_path: Pat
         assert seen == [("writing", "gpt-6-luna"), ("evaluating", "gemma4:12b"),
                         ("writing", "gpt-6-luna"), ("evaluating", "gemma4:12b"),
                         ("copy", "gpt-6.1-terra")]
-        info = json.loads(conn.execute("SELECT model_info_json FROM revisions WHERE id=?",
-                                       (revision["id"],)).fetchone()[0])
+        saved = conn.execute("SELECT model_info_json,posting_copy_json FROM revisions WHERE id=?",
+                             (revision["id"],)).fetchone()
+        info = json.loads(saved["model_info_json"])
         assert (info["writer"], info["evaluator"], info["posting"]) == (
-            "gpt-6-luna", "gemma4:12b", "gpt-6.1-terra")
+            "openai/gpt-6-luna", "ollama/gemma4:12b", "openai/gpt-6.1-terra")
+        assert json.loads(saved["posting_copy_json"])["title"] == "The hidden letter"

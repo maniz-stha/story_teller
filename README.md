@@ -1,10 +1,10 @@
 # Story Teller
 
-Story Teller creates first-person English story videos on one computer. It writes and evaluates a story with Ollama, synthesizes narration with Chatterbox, times captions with faster-whisper, and renders a portrait MP4 with FFmpeg. You review each preview and manually post the approved video and copy. Automatic publishing and scheduled generation are future work.
+Story Teller creates first-person English story videos on one computer. It writes and evaluates stories with selected Ollama or OpenAI models, synthesizes narration with Chatterbox, times captions with faster-whisper, and renders a portrait MP4 with FFmpeg. You review each preview and manually post the approved video and copy. Automatic publishing and scheduled generation are future work.
 
 ## Setup
 
-Install Python 3.11, [uv](https://docs.astral.sh/uv/), [Ollama](https://ollama.com/), and FFmpeg with `ffprobe`. The story writer and evaluator use `gemma4:12b`; posting copy uses `qwen3:4b-instruct`. Pull both before the first run:
+Install Python 3.11, [uv](https://docs.astral.sh/uv/), and FFmpeg with `ffprobe`. The default local models require [Ollama](https://ollama.com/): the story writer and evaluator use `gemma4:12b`, and posting copy uses `qwen3:4b-instruct`. Pull both if using those defaults:
 
 ```sh
 ollama pull qwen3:4b-instruct
@@ -15,7 +15,7 @@ uv sync --python 3.11 --group dev
 
 Keep Ollama running while using Ollama models. Preflight checks the executables, Python version, selected Ollama models or OpenAI key, voice-reference files, free disk space, and data-folder write access. Fix any `MISSING` result before generating. On a fresh Ollama installation, start its local service with `ollama serve` in another terminal before pulling models or running preflight.
 
-Writing, evaluation, and posting copy each have an independent model selector in the Inputs form. The defaults remain `gemma4:12b`, `gemma4:12b`, and `qwen3:4b-instruct`. Each selector also offers the other Ollama model, `gpt-6-luna` (OpenAI), and `gpt-6.1-terra` (OpenAI). Settings are saved; a run keeps its chosen models even if settings change later. Preflight checks the saved selections; a run override with an unavailable model fails visibly in the worker.
+Writing, evaluation, and posting copy each have an independent model selector in the Inputs form. The defaults remain `gemma4:12b`, `gemma4:12b`, and `qwen3:4b-instruct`. Each selector also offers the other Ollama model, `gpt-6-luna` (OpenAI), and `gpt-6.1-terra` (OpenAI). Settings and run metadata retain both the provider and model. A run keeps its choices even if settings change later. Preflight checks the saved selections; a run override with an unavailable model fails visibly in the worker. The options come from `MODELS` in `service.py`; adding another provider also requires its client in `pipeline.py` and a preflight check.
 
 For an OpenAI selection, create an ignored `.env` file in the project root containing `OPENAI_API_KEY=your-key`, or set that environment variable before starting the app. The key is read only by the worker and preflight; it is never part of settings, run inputs, or API responses. OpenAI requests send the story prompt or posting copy text to OpenAI. The app validates structured responses locally and does not store the API response at OpenAI (`store: false`).
 
@@ -29,9 +29,11 @@ Start the server and worker in one terminal:
 .venv/bin/story-teller serve
 ```
 
-Open `http://127.0.0.1:8765` on the same computer. Upload at least one background clip, adjust inputs, and choose **Generate video**. The app randomly selects a named theme when Theme is Random and randomly selects an uploaded clip. The finished preview, story, and platform copy appear on the review side. You can request story or subtitle-position changes, edit posting copy, and approve the current preview. **Download approved video** returns the approved MP4; copy the platform text from the page. Story changes regenerate downstream media; position changes reuse the narration.
+Open `http://127.0.0.1:8765` on the same computer. Upload at least one background clip, adjust inputs, and choose **Generate video**. The app randomly selects a named theme when Theme is Random and randomly selects an uploaded clip. The finished preview, story, and one shared posting copy appear on the review side. The Runs dropdown uses the story title when one is available. You can request story or subtitle-position changes, edit posting copy, and approve the current preview. **Download approved video** returns the approved MP4; copy the title, caption, and hashtags from the page for manual posting. Story changes regenerate downstream media; position changes reuse the narration.
 
 The default narration pace is 260 words per minute. Final duration follows the accepted script's word count, so a 90-second target may finish a few seconds early or late while preserving the chosen pace. The background video is trimmed to the final audio length.
+
+To remove an old story, select it under **Previous runs** and choose **Delete selected story**. Confirming removes that run, all its revisions, and its generated files. Uploaded background clips and other runs remain available. A queued or generating run must finish or fail before it can be deleted. Back up the data folder first if you may need the story later.
 
 The CLI uses the same local API:
 

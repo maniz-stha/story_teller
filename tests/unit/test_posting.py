@@ -3,14 +3,20 @@ from story_teller.story import StoryDraft
 
 
 class FakeLLM:
+    calls = 0
+
     def structured(self, prompt, schema):
         assert schema is PostingCopy
+        assert "manual posting" in prompt
+        self.calls += 1
         return PostingCopy(title="A strange message", caption="I never expected this.", hashtags=["#story"])
 
 
-def test_copy_generated_only_for_selected_platforms():
+def test_one_shared_copy_generated():
     story = StoryDraft(script="I found a message. " * 20, summary="A strange message appeared", narrator="female")
-    assert list(generate_posting_copy(story, ["youtube", "tiktok"], FakeLLM())) == ["youtube", "tiktok"]
+    llm = FakeLLM()
+    assert generate_posting_copy(story, llm).title == "A strange message"
+    assert llm.calls == 1
 
 
 def test_malformed_hashtag_is_rejected():

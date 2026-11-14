@@ -24,13 +24,14 @@ def test_generate_reposition_approve_survives_restart(tmp_path: Path, monkeypatc
 
     monkeypatch.setattr("story_teller.pipeline.synthesize", fake_synthesize)
     monkeypatch.setattr("story_teller.pipeline.time_words", lambda *args: [TimedWord("I", 0, .2), TimedWord("found", .2, .4), TimedWord("a", .4, .6), TimedWord("secret.", .6, .8)])
-    monkeypatch.setattr("story_teller.pipeline.generate_posting_copy", lambda story, platforms, llm: {p: PostingCopy(title="Secret", caption="A secret appeared", hashtags=["#story"]) for p in platforms})
+    monkeypatch.setattr("story_teller.pipeline.generate_posting_copy", lambda story, llm: PostingCopy(title="Secret", caption="A secret appeared", hashtags=["#story"]))
 
     with connect(tmp_path) as conn:
         conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES('c','clips/c/source.mp4','sha',0.3,320,240)")
         conn.commit()
         run_id = create_run(conn, {}, 1)
         assert process_next_run(conn, tmp_path, run_stage)
+        assert conn.execute("SELECT posting_copy_json FROM revisions WHERE run_id=? AND number=1", (run_id,)).fetchone()[0].startswith('{"title":')
         first = conn.execute("SELECT audio_path FROM revisions WHERE run_id=? AND number=1", (run_id,)).fetchone()[0]
         assert request_revision(conn, run_id, "subtitle_position", "move higher") == 2
         assert process_next_run(conn, tmp_path, run_stage)

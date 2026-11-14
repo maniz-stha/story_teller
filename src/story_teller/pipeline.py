@@ -6,13 +6,18 @@ from pathlib import Path
 from .captions import CaptionCue, group_cues, time_words
 from .posting import generate_posting_copy
 from .render import render_video
-from .service import resolve_artifact
+from .service import resolve_artifact, selected_model
 from .speech import managed_voice, synthesize
 from .story import Ollama, OpenAI, StoryDraft, evaluate_story, generate_story, validate_story
 
 
 def _model(name: str) -> Ollama | OpenAI:
-    return OpenAI(name) if name.startswith("gpt-") else Ollama(model=name)
+    provider, model = selected_model(name)
+    clients = {"ollama": Ollama, "openai": OpenAI}
+    try:
+        return clients[provider](model)
+    except KeyError as exc:
+        raise ValueError(f"Unsupported model provider: {provider}") from exc
 
 
 def _story_note(conn: sqlite3.Connection, revision: sqlite3.Row) -> str | None:
@@ -29,15 +34,16 @@ def run_stage(stage: str, conn: sqlite3.Connection, root: Path, run: sqlite3.Row
     rel_dir = f"runs/{run['id']}/revisions/{revision['number']}"
     directory = resolve_artifact(root, rel_dir)
     directory.mkdir(parents=True, exist_ok=True)
-    models = {"writing": ("writing_model", "gemma4:12b"),
-              "evaluating": ("evaluation_model", "gemma4:12b"),
-              "copy": ("posting_model", "qwen3:4b-instruct")}
-    llm = _model(inputs.get(*models[stage])) if stage in models else None
+    models = {"writing": ("writing_model", "ollama/gemma4:12b"),
+              "evaluating": ("evaluation_model", "ollama/gemma4:12b"),
+              "copy": ("posting_model", "ollama/qwen3:4b-instruct")}
+    choice = inputs.get(*models[stage]) if stage in models else None
+    llm = _model(choice) if choice else None
     if stage == "writing":
         recent = [row[0] for row in conn.execute("SELECT v.summary FROM revisions v JOIN runs r ON r.approved_revision_id=v.id WHERE v.summary IS NOT NULL ORDER BY r.updated_at DESC LIMIT 20")]
         assert llm is not None
         draft = generate_story(inputs, recent, llm, note=_story_note(conn, revision))
-        metadata = {"writer": llm.model, "writer_prompt": 2, "story_title": draft.title, "word_count": len(draft.script.split()), "estimated_duration_seconds": len(draft.script.split()) * 60 / int(inputs["narration_speed"])}
+        metadata = {"writer": choice, "writer_prompt": 2, "story_title": draft.title, "word_count": len(draft.script.split()), "estimated_duration_seconds": len(draft.script.split()) * 60 / int(inputs["narration_speed"])}
         conn.execute("UPDATE revisions SET story=?,summary=?,narrator=?,model_info_json=? WHERE id=?", (draft.script, draft.summary, draft.narrator, json.dumps(metadata), revision["id"]))
         conn.commit()
     elif stage == "evaluating":
@@ -45,7 +51,7 @@ def run_stage(stage: str, conn: sqlite3.Connection, root: Path, run: sqlite3.Row
         metadata = json.loads(revision["model_info_json"] or "{}")
         draft = StoryDraft(script=revision["story"], summary=revision["summary"], narrator=revision["narrator"], title=metadata.get("story_title"))
         assert llm is not None
-        metadata.update({"evaluator": llm.model, "evaluation_prompt": 2})
+        metadata.update({"evaluator": choice, "evaluation_prompt": 2})
         for retry in range(3):
             try:
                 target_words = round(int(inputs["target_duration"]) * int(inputs["narration_speed"]) / 60)
@@ -66,7 +72,7 @@ def run_stage(stage: str, conn: sqlite3.Connection, root: Path, run: sqlite3.Row
                 break
             if retry == 2:
                 raise ValueError("Story failed evaluation after two revisions: " + "; ".join(reasons))
-            draft = generate_story(inputs, recent, _model(inputs.get("writing_model", "gemma4:12b")), note=_story_note(conn, revision), feedback=f"Previous draft: {draft.script}. Evaluation: {'; '.join(reasons)}")
+            draft = generate_story(inputs, recent, _model(inputs.get("writing_model", "ollama/gemma4:12b")), note=_story_note(conn, revision), feedback=f"Previous draft: {draft.script}. Evaluation: {'; '.join(reasons)}")
     elif stage == "narrating":
         metadata = json.loads(revision["model_info_json"] or "{}")
         draft = StoryDraft(script=revision["story"], summary=revision["summary"], narrator=revision["narrator"], title=metadata.get("story_title"))
@@ -92,10 +98,10 @@ def run_stage(stage: str, conn: sqlite3.Connection, root: Path, run: sqlite3.Row
     elif stage == "copy":
         draft = StoryDraft(script=revision["story"], summary=revision["summary"], narrator=revision["narrator"])
         assert llm is not None
-        copy = generate_posting_copy(draft, inputs["platforms"], llm)
+        copy = generate_posting_copy(draft, llm)
         metadata = json.loads(revision["model_info_json"] or "{}")
-        metadata.update({"posting": llm.model, "posting_prompt": 1})
-        conn.execute("UPDATE revisions SET posting_copy_json=?,model_info_json=? WHERE id=?", (json.dumps({platform: value.model_dump() for platform, value in copy.items()}), json.dumps(metadata), revision["id"]))
+        metadata.update({"posting": choice, "posting_prompt": 1})
+        conn.execute("UPDATE revisions SET posting_copy_json=?,model_info_json=? WHERE id=?", (copy.model_dump_json(), json.dumps(metadata), revision["id"]))
         conn.commit()
     else:
         raise ValueError(f"Unknown stage: {stage}")

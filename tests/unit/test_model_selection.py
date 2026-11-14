@@ -6,10 +6,24 @@ import pytest
 from fastapi.testclient import TestClient
 
 from story_teller.app import check_environment, create_app
+from story_teller.pipeline import _model
 from story_teller.posting import PostingCopy
 from story_teller.service import Settings, connect, create_run, save_settings
-from story_teller.story import Evaluation, OpenAI, StoryOutput
+from story_teller.story import Evaluation, Ollama, OpenAI, StoryOutput
 from story_teller.worker import process_next_run
+
+
+def test_model_provider_is_explicit_and_unknown_provider_is_rejected(tmp_path):
+    assert isinstance(_model("ollama/gemma4:12b"), Ollama)
+    assert isinstance(_model("openai/gpt-6-luna"), OpenAI)
+    with pytest.raises(ValueError, match="provider"):
+        _model("anthropic/claude-sonnet")
+    client = TestClient(create_app(tmp_path))
+    options = client.get("/api/v1/models").json()
+    assert {option["id"] for option in options} == {
+        "ollama/qwen3:4b-instruct", "ollama/gemma4:12b",
+        "openai/gpt-6-luna", "openai/gpt-6.1-terra",
+    }
 
 
 def test_models_are_validated_and_frozen(tmp_path):
@@ -17,12 +31,12 @@ def test_models_are_validated_and_frozen(tmp_path):
         Settings(writing_model="unknown")
     with connect(tmp_path) as conn:
         conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES('c','clip','sha',1,320,240)")
-        save_settings(conn, Settings(writing_model="gpt-6-luna"))
-        run_id = create_run(conn, {"evaluation_model": "gpt-6.1-terra"}, 1)
+        save_settings(conn, Settings(writing_model="openai/gpt-6-luna"))
+        run_id = create_run(conn, {"evaluation_model": "openai/gpt-6.1-terra"}, 1)
         save_settings(conn, Settings())
         frozen = json.loads(conn.execute("SELECT inputs_json FROM runs WHERE id=?", (run_id,)).fetchone()[0])
     assert (frozen["writing_model"], frozen["evaluation_model"], frozen["posting_model"]) == (
-        "gpt-6-luna", "gpt-6.1-terra", "qwen3:4b-instruct")
+        "openai/gpt-6-luna", "openai/gpt-6.1-terra", "ollama/qwen3:4b-instruct")
     client = TestClient(create_app(tmp_path))
     assert "OPENAI_API_KEY" not in client.get("/api/v1/settings").text
     assert client.put("/api/v1/settings", json={**Settings().model_dump(), "openai_api_key": "secret"}).status_code == 422
@@ -59,7 +73,7 @@ def test_openai_requires_key_and_validates_structured_response(tmp_path, monkeyp
 
 def test_preflight_checks_only_selected_providers(tmp_path, monkeypatch):
     with connect(tmp_path) as conn:
-        save_settings(conn, Settings(writing_model="gpt-6-luna", evaluation_model="gpt-6-luna", posting_model="gpt-6-luna"))
+        save_settings(conn, Settings(writing_model="openai/gpt-6-luna", evaluation_model="openai/gpt-6-luna", posting_model="openai/gpt-6-luna"))
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
     monkeypatch.chdir(tmp_path)
     checks = check_environment(tmp_path)
@@ -102,7 +116,7 @@ def test_missing_key_becomes_visible_worker_failure(tmp_path, monkeypatch):
     with connect(tmp_path) as conn:
         conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES('c','clip','sha',1,320,240)")
         conn.commit()
-        run_id = create_run(conn, {"writing_model": "gpt-6-luna"}, 1)
+        run_id = create_run(conn, {"writing_model": "openai/gpt-6-luna"}, 1)
         assert process_next_run(conn, tmp_path)
         run = conn.execute("SELECT status,error FROM runs WHERE id=?", (run_id,)).fetchone()
     assert run["status"] == "failed"

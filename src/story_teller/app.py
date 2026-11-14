@@ -11,7 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 from .api import router
-from .service import Settings, connect, get_settings
+from .service import Settings, connect, get_settings, selected_model
 from .story import openai_api_key
 
 
@@ -27,8 +27,8 @@ def check_environment(data_root: Path | None = None) -> list[Check]:
     if data_root and (data_root / "story_teller.sqlite3").exists():
         with connect(data_root) as conn:
             settings = get_settings(conn)
-    selected = {settings.writing_model, settings.evaluation_model, settings.posting_model}
-    local = {name for name in selected if not name.startswith("gpt-")}
+    selected = {selected_model(value) for value in (settings.writing_model, settings.evaluation_model, settings.posting_model)}
+    local = {model for provider, model in selected if provider == "ollama"}
     checks = [Check(name, bool(shutil.which(name)), f"{name} executable {'found' if shutil.which(name) else 'is required'}") for name in (("ollama",) if local else ()) + ("ffmpeg", "ffprobe")]
     checks.append(Check("python", sys.version_info[:2] == (3, 11), f"Python {sys.version_info.major}.{sys.version_info.minor} active; 3.11 required"))
     if local:
@@ -40,7 +40,7 @@ def check_environment(data_root: Path | None = None) -> list[Check]:
             checks.append(Check("ollama_model", not missing, "Selected Ollama models installed" if not missing else "Missing Ollama models: " + ", ".join(sorted(missing))))
         except (httpx.HTTPError, ValueError, KeyError):
             checks.append(Check("ollama_model", False, "Ollama service is unavailable"))
-    if selected - local:
+    if any(provider == "openai" for provider, _ in selected):
         has_key = bool(openai_api_key())
         checks.append(Check("openai_api_key", has_key, "OPENAI_API_KEY found" if has_key else "Set OPENAI_API_KEY in an ignored .env file"))
     for narrator in ("female", "male"):

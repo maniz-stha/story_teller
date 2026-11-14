@@ -54,7 +54,7 @@ Before answering, silently revise until the opening creates a clear reason to ke
 
 OUTPUT
 Return only a JSON object matching the provided schema:
-title: A short, intriguing title that does not reveal the ending.
+title: A clear, concise title that explains the story's central situation or conflict without revealing the ending. Avoid vague teasers.
 narration: The complete story, ready for text-to-speech.
 word_count: Count only the narration words.
 estimated_duration_seconds: Estimate from the requested narration speed.

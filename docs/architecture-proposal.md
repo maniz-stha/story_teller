@@ -8,7 +8,7 @@
 
 ## 1. Architectural stance
 
-Build one local Python application with a defined, restartable pipeline. The web UI and CLI are two ways to submit and inspect the same jobs. One worker process runs one generation job at a time. SQLite stores state; files store large media. Only story writing, story evaluation, revision, and posting copy use Ollama. Audio, timing, and rendering are explicit tools, not autonomous agents.
+Build one local Python application with a defined, restartable pipeline. The web UI and CLI are two ways to submit and inspect the same jobs. One worker process runs one generation job at a time. SQLite stores state; files store large media. Story writing, evaluation, revision, and posting copy use the selected Ollama or OpenAI models. Audio, timing, and rendering are explicit tools, not autonomous agents.
 
 ```mermaid
 flowchart LR
@@ -19,6 +19,7 @@ flowchart LR
     WORKER[Single worker process] <--> DB
     WORKER <--> FILES
     WORKER --> OLLAMA[Local Ollama]
+    WORKER --> OPENAI[OpenAI API]
     WORKER --> TTS[Local TTS]
     WORKER --> ASR[Local word timing]
     WORKER --> FFMPEG[FFmpeg / ffprobe]
@@ -35,7 +36,7 @@ The app is intended for one machine and one user. There is no cloud deployment, 
 | CLI | Python standard-library `argparse`, calling the same loopback HTTP API as the web UI | One validation and job-submission path. The local app must be running before CLI commands are used; a standalone CLI would require a second lifecycle path. |
 | Durable jobs | SQLite queue plus one dedicated worker **process** | Keeps long model and FFmpeg work out of HTTP requests. A single worker avoids CPU/GPU contention. More setup than an in-process task, but jobs survive web restarts. FastAPI warns that its lightweight background tasks are not suited to heavy computation. [FastAPI background-task guidance](https://fastapi.tiangolo.com/tutorial/background-tasks/) |
 | State | Standard-library `sqlite3`, short transactions, versioned SQL migrations, WAL mode | Small, inspectable schema without an ORM or database server. WAL lets the UI read while the worker writes, though SQLite still has one writer at a time. [SQLite WAL documentation](https://www.sqlite.org/wal.html) |
-| Story and evaluation | Ollama local HTTP API with Pydantic v2 models for structured responses, followed by deterministic application checks | Use each model's JSON Schema as Ollama's `format`, then validate the returned JSON with Pydantic. No agent framework is needed for a fixed sequence; schema validity alone cannot establish story quality. Store model name, parameters, prompt version, and evaluation reasons for each run. [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs) |
+| Story and evaluation | Selected Ollama or OpenAI model with Pydantic v2 validation, followed by deterministic application checks | Use structured responses, then validate the returned JSON with Pydantic. No agent framework is needed for a fixed sequence; schema validity alone cannot establish story quality. Store model name, prompt version, and evaluation reasons for each run. [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [OpenAI structured outputs](https://developers.openai.com/api/docs/guides/structured-outputs) |
 | Narration | Local Chatterbox as the first engine to benchmark, using `samples/female_voice_reference.mp3` and `samples/male_voice_reference.mp3` | These user-supplied references match the female/male rule. Chatterbox is archived and unmaintained, so the exact model/version is a release gate, not an assumed production choice. [Chatterbox project status](https://github.com/resemble-ai/chatterbox/blob/master/README.md) |
 | Word timing | Local `faster-whisper` on the **final** audio | It supports word timestamps; recognized text must be compared with the script before subtitle creation. A stronger aligner is an option only if timings fail acceptance checks. [faster-whisper documentation](https://github.com/SYSTRAN/faster-whisper) |
 | Media | FFmpeg and ffprobe as subprocesses, with argument arrays and fixed filter templates | Mature tools for trim/loop/crop/mix/burn-in. Check exit status and inspect produced media. No arbitrary user text enters shell commands. [FFmpeg filters](https://www.ffmpeg.org/ffmpeg-filters.html) |
@@ -58,15 +59,15 @@ The repository currently contains the PRD, empty `requirements.txt`, and experim
 4. **Narration module:** chooses voice from stored narrator identity, generates WAV, measures its actual duration, and checks intelligibility/clipping/duration. A script revision invalidates narration and all later artifacts.
 5. **Timing module:** transcribes final WAV into word timestamps, compares transcription with script, then creates five-to-seven-word caption cues with shorter groups at natural breaks. Timing data is independent of position/style.
 6. **Renderer:** validates uploaded clips with ffprobe, mutes clip audio, fills a 9:16 frame, and burns captions in using a generated subtitle file. A clip longer than the narration is trimmed; a shorter clip is looped and its last repeat trimmed. The final MP4 ends with the final story audio, apart from unavoidable frame/codec rounding. ffprobe verifies the result before it is offered for review.
-7. **Posting-copy module:** creates and validates text for the three selected platforms after the story is stable. Copy is editable in review; there is no upload integration in the MVP.
+7. **Posting-copy module:** creates and validates one shared text set after the story is stable. Copy is editable in review; there is no upload integration in the MVP.
 8. **Local web layer:** settings, clip library, run status, video preview, story notes, subtitle-position notes, approval, and download. Long-running work is never performed inside an HTTP request.
 
 Keep the dependency direction simple: `web/cli → application service → persistence/pipeline → Ollama or OpenAI/TTS/ASR/FFmpeg`. Model IDs are validated settings, frozen into each run's input JSON, and selected separately for writing, evaluation, and posting copy. Media stages should not know about HTTP or HTML. Avoid generic plugin interfaces until a second concrete engine is needed.
 
 ### Validation at each boundary
 
-- **User/API input:** FastAPI uses Pydantic v2 models to validate field types, allowed themes, positive and bounded duration/speed, selected platforms, and free-text lengths before a run is stored. [FastAPI request validation](https://fastapi.tiangolo.com/tutorial/body/)
-- **Ollama output:** Define small Pydantic models for story/plan (`script`, `summary`, explicit narrator identity), evaluation (criterion ratings, pass/fail, reasons), and posting copy (per-platform title, caption, hashtags). Configure these models to forbid extra fields and use strict field validation; reject missing fields, invalid enums, empty text, and out-of-range ratings. Send the same model's JSON Schema to Ollama and parse its response with Pydantic; malformed output gets a bounded retry, then a visible stage failure. [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [Pydantic models](https://pydantic.dev/docs/validation/latest/concepts/models/)
+- **User/API input:** FastAPI uses Pydantic v2 models to validate field types, allowed themes, positive and bounded duration/speed, and free-text lengths before a run is stored. [FastAPI request validation](https://fastapi.tiangolo.com/tutorial/body/)
+- **Ollama output:** Define small Pydantic models for story/plan (`script`, `summary`, explicit narrator identity), evaluation (criterion ratings, pass/fail, reasons), and one shared posting copy (title, caption, hashtags). Configure these models to forbid extra fields and use strict field validation; reject missing fields, invalid enums, empty text, and out-of-range ratings. Send the same model's JSON Schema to Ollama and parse its response with Pydantic; malformed output gets a bounded retry, then a visible stage failure. [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [Pydantic models](https://pydantic.dev/docs/validation/latest/concepts/models/)
 - **Business rules:** Check the resolved perspective, approximate word budget, required first-person narration for the validated preset, allowed platform set, and plot-similarity guard separately from Pydantic shape checks. The evaluator's judgment is advisory within a bounded revision loop; human review remains the final quality gate.
 - **Media output:** Validate voice-reference and uploaded-clip format with ffprobe, compare final-audio transcription with the script, and inspect rendered dimensions, streams, and audio/video end alignment before marking a stage complete.
 
@@ -106,13 +107,16 @@ The web UI uses the same JSON API that the CLI calls. Keep endpoints under `/api
 | --- | --- |
 | `GET/PUT /api/v1/settings` | Read and update validated defaults. |
 | `GET/POST /api/v1/clips`, `DELETE /api/v1/clips/{id}` | List/upload/deactivate clips. |
-| `GET/POST /api/v1/runs`, `GET /api/v1/runs/{id}` | List/start/inspect runs and stage status. |
+| `GET/POST /api/v1/runs`, `GET /api/v1/runs/{id}` | List/start/inspect runs and stage status. Run lists include the current story title when generated. |
+| `DELETE /api/v1/runs/{id}` | Explicitly remove a finished or failed run, its revisions, and generated artifacts; retain shared uploaded clips. |
 | `GET /api/v1/runs/{id}/revisions/{n}` | Inspect one preview, evaluation, and posting copy. |
 | `POST /api/v1/runs/{id}/revisions` | Submit a story or subtitle-position change request. |
-| `PUT /api/v1/runs/{id}/revisions/{n}/posting-copy` | Edit generated titles, captions, and hashtags while the revision awaits review. |
+| `PUT /api/v1/runs/{id}/revisions/{n}/posting-copy` | Edit the shared title, caption, and hashtags while the revision awaits review. Body is one posting-copy object. |
 | `POST /api/v1/runs/{id}/retry` | Retry a failed or interrupted stage. |
 | `POST /api/v1/runs/{id}/approve` | Approve the current revision, with its revision ID supplied for stale-request protection. |
 | `GET /api/v1/runs/{id}/video` | Stream the current reviewable or approved MP4; use a separate download disposition for export. |
+
+The posting-copy API now uses a single object rather than a platform-keyed map. Existing platform-keyed copy is projected as one object when read; stored historical JSON is left intact. Saved platform selections are ignored when reading older settings and are omitted from new settings and runs.
 
 Use short polling for progress in the local UI; no WebSockets or event bus in phase one. Keep the OpenAPI schema generated by FastAPI as the API reference. Do not expose direct path or arbitrary command endpoints.
 

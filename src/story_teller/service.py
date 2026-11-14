@@ -1,6 +1,9 @@
 import hashlib
 import json
+import logging
 import random
+import re
+import shutil
 import sqlite3
 import subprocess
 import uuid
@@ -12,8 +15,17 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from .storage import migrate, open_db, resolve_artifact
 
 THEMES = ("workplace drama", "family conflict", "everyday mystery", "betrayal", "wholesome surprise")
-PLATFORMS = ("youtube", "instagram", "tiktok")
-MODELS = ("qwen3:4b-instruct", "gemma4:12b", "gpt-6-luna", "gpt-6.1-terra")
+MODELS = {
+    "ollama": ("qwen3:4b-instruct", "gemma4:12b"),
+    "openai": ("gpt-6-luna", "gpt-6.1-terra"),
+}
+
+
+def selected_model(value: str) -> tuple[str, str]:
+    provider, _, model = value.partition("/")
+    if model not in MODELS.get(provider, ()):
+        raise ValueError("Invalid model selection or provider")
+    return provider, model
 
 
 class Settings(BaseModel):
@@ -28,10 +40,9 @@ class Settings(BaseModel):
     language: str = "English"
     premise: str = Field(default="", max_length=1000)
     avoid: str = Field(default="", max_length=2000)
-    platforms: list[str] = Field(default_factory=lambda: list(PLATFORMS))
-    writing_model: str = "gemma4:12b"
-    evaluation_model: str = "gemma4:12b"
-    posting_model: str = "qwen3:4b-instruct"
+    writing_model: str = "ollama/gemma4:12b"
+    evaluation_model: str = "ollama/gemma4:12b"
+    posting_model: str = "ollama/qwen3:4b-instruct"
 
     @model_validator(mode="after")
     def valid_choices(self) -> "Settings":
@@ -41,10 +52,8 @@ class Settings(BaseModel):
             raise ValueError("Custom theme is required")
         if self.perspective != "first person" or self.language != "English":
             raise ValueError("Only first-person English is validated")
-        if not self.platforms or len(set(self.platforms)) != len(self.platforms) or any(p not in PLATFORMS for p in self.platforms):
-            raise ValueError("Invalid platform selection")
-        if any(model not in MODELS for model in (self.writing_model, self.evaluation_model, self.posting_model)):
-            raise ValueError("Invalid model selection")
+        for selection in (self.writing_model, self.evaluation_model, self.posting_model):
+            selected_model(selection)
         return self
 
 
@@ -56,7 +65,11 @@ def connect(root: Path) -> sqlite3.Connection:
 
 def get_settings(conn: sqlite3.Connection) -> Settings:
     row = conn.execute("SELECT value FROM settings WHERE key='defaults'").fetchone()
-    return Settings.model_validate_json(row[0]) if row else Settings()
+    if not row:
+        return Settings()
+    data = json.loads(row[0])
+    data.pop("platforms", None)
+    return Settings.model_validate(data)
 
 
 def save_settings(conn: sqlite3.Connection, settings: Settings) -> None:
@@ -140,6 +153,43 @@ def approve_revision(conn: sqlite3.Connection, run_id: str, revision_no: int) ->
     except Exception:
         conn.rollback()
         raise
+
+
+def delete_run(conn: sqlite3.Connection, root: Path, run_id: str) -> None:
+    if not re.fullmatch(r"[0-9a-f]{32}", run_id):
+        raise LookupError("Run not found")
+    conn.execute("BEGIN IMMEDIATE")
+    staged = None
+    directory = root.resolve() / "runs" / run_id
+    try:
+        run = conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()
+        if not run:
+            raise LookupError("Run not found")
+        if run["status"] not in ("failed", "awaiting_review", "approved"):
+            raise ValueError("Only finished or failed runs can be deleted")
+        if directory.parent.is_symlink() or directory.is_symlink():
+            raise ValueError("Run files must stay in their own directory")
+        if directory.exists():
+            if not directory.is_dir():
+                raise ValueError("Run files must be a directory")
+            staged = directory.with_name(f".deleting-{run_id}-{uuid.uuid4().hex}")
+            directory.rename(staged)
+        conn.execute("DELETE FROM stage_attempts WHERE revision_id IN (SELECT id FROM revisions WHERE run_id=?)", (run_id,))
+        conn.execute("UPDATE revisions SET parent_id=NULL WHERE run_id=?", (run_id,))
+        conn.execute("DELETE FROM revisions WHERE run_id=?", (run_id,))
+        conn.execute("DELETE FROM runs WHERE id=?", (run_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        if staged is not None:
+            staged.rename(directory)
+        raise
+    if staged is not None:
+        try:
+            shutil.rmtree(staged)
+        except OSError:
+            # shortcut: A failed purge leaves staged files, add startup cleanup if this occurs.
+            logging.getLogger(__name__).exception("Deleted run %s but could not remove staged files at %s", run_id, staged)
 
 
 def inspect_video(path: Path) -> tuple[float, int, int]:
