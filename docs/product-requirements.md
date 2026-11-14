@@ -18,7 +18,7 @@ Generate short, first-person story videos from a small set of inputs, with narra
 - Generate original stories using a local Ollama model, then evaluate and automatically revise weak drafts.
 - Produce one portrait video with local narration, burned-in subtitles, and a randomly chosen uploaded background clip.
 - Allow feedback on the story or subtitle position, rebuild the affected stages, and require approval of the latest preview.
-- Save the approved video and generated, platform-specific titles, captions, and hashtags for manual posting.
+- Save the approved video and one shared title, caption, and hashtag set for manual posting.
 - Use previous story summaries automatically to reduce repeated plots and twists.
 
 ### Out of scope for phase one
@@ -52,7 +52,7 @@ All listed fields can be edited in saved settings and overridden for a run. Save
 | Recent plots or twists to avoid | Automatically derived from short summaries of prior stories; user can add exclusions for a run. The proposed initial source is approved stories. |
 | Narrator voice | Female by default. Use a male voice when the generated story explicitly has a male narrator. Store narrator identity with the story instead of guessing it later from the prose. Initial voice references are `samples/female_voice_reference.mp3` and `samples/male_voice_reference.mp3`; test their quality before production use. |
 | Background clip | Random selection from the user's uploaded clip library. |
-| Intended platforms | All three selected by default for posting copy; user can change selection before approval. Phase one does not publish. |
+| Intended platforms | The approved video and one shared posting copy can be manually posted to YouTube Shorts, Instagram Reels, and TikTok. Phase one does not publish. |
 
 The earlier examples of moral dilemmas and short suspense are writing guidance, not additional theme values. At 90 seconds and 260 words per minute, the initial script target is approximately 390 spoken words; allow a 10% script-length tolerance. The final audio duration is authoritative.
 
@@ -66,7 +66,7 @@ The story follows a hook, setup with personal stakes, connected escalation, a co
 4. **Narrate:** Choose the female or male local narrator voice from story metadata. Generate audio, measure its duration, and correct material duration or speech-quality problems before proceeding. The stored script and audio must remain associated with the same story version.
 5. **Time subtitles:** Derive word timing from the *final* narration audio, after any speed adjustment. Compare the recognized words with the script and flag material omissions or additions. Default to groups of five to seven words, allowing shorter groups at pauses, sentence endings, or line-length limits. Save the timed subtitle data separately from its visual position.
 6. **Render:** Pick an uploaded clip randomly, mute its original audio, and fit it into a portrait frame. Use the final story-audio duration as the video duration: trim a longer background clip at that point; loop a shorter clip and trim the last repeat at that point. Mix the narration and burn in readable subtitles. Check the resulting video for valid audio, dimensions, subtitle presence, and an ending that matches the audio (allowing only frame/codec rounding).
-7. **Prepare posting copy:** Generate a title, caption, and hashtags for each selected platform. Show these with the video preview. Keep copy editable before approval.
+7. **Prepare posting copy:** Generate one shared title, caption, and hashtag set for manual posting. Show it with the video preview. Keep copy editable before approval.
 8. **Review:** The user watches the saved preview and may approve it or submit natural-language change requests for the story or subtitle position. Story changes create a new story version and rerun evaluation, narration, timing, rendering, and posting copy. Position changes rerender the current audio and subtitles only. Each revision creates a new preview; only the latest version can be approved.
 9. **Export:** Approval marks the latest preview as final and makes its video and posting copy available to download and copy. The user uploads them manually.
 
@@ -81,7 +81,7 @@ Any stage can move to `failed` with a clear reason and a retry action. A revisio
 ### Local web interface
 
 - Configure defaults; upload, list, and remove background clips; start runs with optional overrides.
-- Show run status and actionable failure reasons.
+- Show run status and actionable failure reasons. Identify runs by a clear, concise story title once generated; fall back to the theme before a title exists.
 - Preview the video and posting copy; request story or subtitle-position changes; approve and download the latest version.
 - Make subtitle placement visible against a portrait preview, including areas likely covered by platform controls. Position requests should support plain-language directions such as moving captions higher.
 

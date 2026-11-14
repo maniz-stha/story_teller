@@ -82,10 +82,10 @@ def run_stage(stage: str, conn: sqlite3.Connection, root: Path, run: sqlite3.Row
         conn.commit()
     elif stage == "copy":
         draft = StoryDraft(script=revision["story"], summary=revision["summary"], narrator=revision["narrator"])
-        copy = generate_posting_copy(draft, inputs["platforms"], llm)
+        copy = generate_posting_copy(draft, llm)
         metadata = json.loads(revision["model_info_json"] or "{}")
         metadata.update({"posting": llm.model, "posting_prompt": 1})
-        conn.execute("UPDATE revisions SET posting_copy_json=?,model_info_json=? WHERE id=?", (json.dumps({platform: value.model_dump() for platform, value in copy.items()}), json.dumps(metadata), revision["id"]))
+        conn.execute("UPDATE revisions SET posting_copy_json=?,model_info_json=? WHERE id=?", (copy.model_dump_json(), json.dumps(metadata), revision["id"]))
         conn.commit()
     else:
         raise ValueError(f"Unknown stage: {stage}")

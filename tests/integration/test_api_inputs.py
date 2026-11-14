@@ -4,7 +4,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from story_teller.app import create_app
-from story_teller.service import inspect_video
+from story_teller.service import connect, inspect_video
 
 
 def test_settings_defaults_and_other_validation(tmp_path: Path):
@@ -14,6 +14,17 @@ def test_settings_defaults_and_other_validation(tmp_path: Path):
     assert settings["target_duration"] == 90
     assert client.put("/api/v1/settings", json={**settings, "theme": "other"}).status_code == 422
     assert client.put("/api/v1/settings", json={**settings, "theme": "other", "custom_theme": "Lost pets"}).status_code == 200
+
+
+def test_saved_platform_selection_is_ignored_for_shared_copy(tmp_path: Path):
+    with connect(tmp_path) as conn:
+        conn.execute("INSERT INTO settings(key,value) VALUES('defaults',?)", ('{"theme":"family conflict","platforms":["youtube"]}',))
+        conn.commit()
+    client = TestClient(create_app(tmp_path))
+    settings = client.get("/api/v1/settings").json()
+    assert settings["theme"] == "family conflict"
+    assert "platforms" not in settings
+    assert client.put("/api/v1/settings", json=settings).status_code == 200
 
 
 def test_clip_upload_and_deactivation(tmp_path: Path):

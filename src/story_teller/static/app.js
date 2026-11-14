@@ -19,17 +19,14 @@ function payload() {
     theme: form.theme.value, custom_theme: form.custom_theme.value || null,
     target_duration: Number(form.target_duration.value), narration_speed: Number(form.narration_speed.value),
     tone: form.tone.value || null, perspective: form.perspective.value, audience: form.audience.value,
-    language: form.language.value, premise: form.premise.value, avoid: form.avoid.value,
-    platforms: [...form.querySelectorAll('input[name="platforms"]:checked')].map(input => input.value)
+    language: form.language.value, premise: form.premise.value, avoid: form.avoid.value
   };
 }
 function loadSettings(data) {
   const form = $('#settings');
   for (const [key, value] of Object.entries(data)) {
-    if (key === 'platforms') continue;
     if (form[key]) form[key].value = value ?? '';
   }
-  form.querySelectorAll('input[name="platforms"]').forEach(box => box.checked = data.platforms.includes(box.value));
 }
 async function clips() {
   const items = await request('/clips');
@@ -45,12 +42,11 @@ async function runs() {
   const items = await request('/runs');
   const select = $('#runs');
   const selected = currentRun || select.value;
-  select.replaceChildren(new Option('Select a run', ''), ...items.map(item => new Option(`${item.theme} · ${item.status} · ${item.id.slice(0,8)}`, item.id)));
+  select.replaceChildren(new Option('Select a run', ''), ...items.map(item => new Option(`${item.title || item.theme} · ${item.status} · ${item.id.slice(0,8)}`, item.id)));
   select.value = selected;
 }
-function copyEditor(platform, value) {
-  const section = document.createElement('div'); section.className = 'copy-card'; section.dataset.platform = platform;
-  const title = document.createElement('h4'); title.textContent = platform; section.append(title);
+function copyEditor(value) {
+  const section = document.createElement('div'); section.className = 'copy-card';
   for (const key of ['title','caption','hashtags']) {
     const label = document.createElement('label'); label.textContent = key;
     const input = document.createElement(key === 'caption' ? 'textarea' : 'input'); input.dataset.field = key;
@@ -72,7 +68,7 @@ async function refresh() {
     $('#continuity-note').textContent = detail.summary || '';
     $('#evaluation').textContent = (detail.evaluation?.reasons || []).join(' • ');
     shownStatus = run.status;
-    $('#copy').replaceChildren(...Object.entries(detail.posting_copy || {}).map(([platform,value]) => copyEditor(platform,value)));
+    $('#copy').replaceChildren(...(detail.posting_copy ? [copyEditor(detail.posting_copy)] : []));
     if (run.status === 'awaiting_review' || run.status === 'approved') {
       shownVideo = `${currentRun}-${currentRevision}`;
       $('#video').src = `${api}/runs/${currentRun}/video?preview=${Date.now()}`;
@@ -109,6 +105,6 @@ $('#delete-run').onclick = () => {
     await runs();
   });
 };
-$('#save-copy').onclick = () => act(async () => { const copy = {}; document.querySelectorAll('.copy-card').forEach(section => { const field = key => section.querySelector(`[data-field="${key}"]`).value; copy[section.dataset.platform] = {title:field('title'),caption:field('caption'),hashtags:field('hashtags').split(/\s+/).filter(Boolean)}; }); await request(`/runs/${currentRun}/revisions/${currentRevision}/posting-copy`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(copy)}); });
+$('#save-copy').onclick = () => act(async () => { const section = $('.copy-card'); const field = key => section.querySelector(`[data-field="${key}"]`).value; const copy = {title:field('title'),caption:field('caption'),hashtags:field('hashtags').split(/\s+/).filter(Boolean)}; await request(`/runs/${currentRun}/revisions/${currentRevision}/posting-copy`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(copy)}); });
 Promise.all([request('/settings'),clips(),runs()]).then(([settings]) => loadSettings(settings)).catch(error => notice(error.message));
 setInterval(() => refresh().catch(error => notice(error.message)),3000);

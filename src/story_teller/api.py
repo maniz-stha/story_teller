@@ -69,7 +69,13 @@ def router(root: Path) -> APIRouter:
     @api.get("/runs")
     def list_runs() -> list[dict[str, object]]:
         with connect(root) as conn:
-            return [dict(row) for row in conn.execute("SELECT id,status,theme,created_at,error FROM runs ORDER BY created_at DESC,id DESC LIMIT 100")]
+            rows = conn.execute("SELECT r.id,r.status,r.theme,r.created_at,r.error,v.model_info_json FROM runs r JOIN revisions v ON v.id=r.current_revision_id ORDER BY r.created_at DESC,r.id DESC LIMIT 100")
+            result = []
+            for row in rows:
+                item = dict(row)
+                item["title"] = json.loads(item.pop("model_info_json") or "{}").get("story_title")
+                result.append(item)
+            return result
 
     @api.post("/runs", status_code=202)
     def start_run(request: RunRequest) -> dict[str, str]:
@@ -110,6 +116,9 @@ def router(root: Path) -> APIRouter:
             result = dict(row)
             for field in ("evaluation_json", "posting_copy_json", "model_info_json"):
                 result[field.removesuffix("_json")] = json.loads(result.pop(field)) if result[field] else None
+            copy = result["posting_copy"]
+            if isinstance(copy, dict) and "title" not in copy:
+                result["posting_copy"] = next(iter(copy.values()), None)
             return result
 
     @api.post("/runs/{run_id}/revisions", status_code=202)
@@ -122,17 +131,15 @@ def router(root: Path) -> APIRouter:
             return {"number": number}
 
     @api.put("/runs/{run_id}/revisions/{number}/posting-copy")
-    def edit_copy(run_id: str, number: int, copy: dict[str, PostingCopy]) -> dict[str, object]:
+    def edit_copy(run_id: str, number: int, copy: PostingCopy) -> dict[str, object]:
         with connect(root) as conn:
             conn.execute("BEGIN IMMEDIATE")
-            row = conn.execute("SELECT r.status,r.current_revision_id,r.inputs_json,v.id FROM runs r JOIN revisions v ON v.run_id=r.id WHERE r.id=? AND v.number=?", (run_id, number)).fetchone()
+            row = conn.execute("SELECT r.status,r.current_revision_id,v.id FROM runs r JOIN revisions v ON v.run_id=r.id WHERE r.id=? AND v.number=?", (run_id, number)).fetchone()
             if not row or row["status"] != "awaiting_review" or row["current_revision_id"] != row["id"]:
                 raise HTTPException(409, detail={"code": "copy_conflict", "message": "Only current review copy can be edited"})
-            if set(copy) != set(json.loads(row["inputs_json"])["platforms"]):
-                raise HTTPException(422, detail={"code": "invalid_platforms", "message": "Copy must match selected platforms"})
-            conn.execute("UPDATE revisions SET posting_copy_json=? WHERE id=?", (json.dumps({k: v.model_dump() for k, v in copy.items()}), row["id"]))
+            conn.execute("UPDATE revisions SET posting_copy_json=? WHERE id=?", (copy.model_dump_json(), row["id"]))
             conn.commit()
-        return {"posting_copy": {k: v.model_dump() for k, v in copy.items()}}
+        return {"posting_copy": copy.model_dump()}
 
     @api.post("/runs/{run_id}/retry", status_code=202)
     def retry(run_id: str) -> dict[str, str]:

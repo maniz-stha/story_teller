@@ -35,6 +35,19 @@ def test_review_page_has_story_output_fields(tmp_path: Path):
     assert 'id="continuity-note"' in html
 
 
+def test_runs_dropdown_uses_story_title_with_theme_fallback():
+    script = r"""
+const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
+const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
+const select = {value:'',replaceChildren(...options){this.options=options}};
+const context = vm.createContext({document:{querySelector:selector=>selector==='#runs'?select:{}},Option:function(label,value){return {label,value}},setInterval(){},fetch:async()=>({ok:true,status:200,json:async()=>[{id:'123456789',title:'My manager took my idea',theme:'workplace drama',status:'approved'},{id:'abcdefghi',title:null,theme:'family conflict',status:'queued'}]})});
+vm.runInContext(source,context);
+(async()=>{await vm.runInContext('runs()',context); assert.match(select.options[1].label,/My manager took my idea/); assert.match(select.options[2].label,/family conflict/);})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+    result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
 def test_run_delete_requires_confirmation_and_clears_selection(tmp_path: Path):
     html = TestClient(create_app(tmp_path)).get("/").text
     assert 'id="delete-run"' in html

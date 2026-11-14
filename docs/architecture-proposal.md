@@ -58,15 +58,15 @@ The repository currently contains the PRD, empty `requirements.txt`, and experim
 4. **Narration module:** chooses voice from stored narrator identity, generates WAV, measures its actual duration, and checks intelligibility/clipping/duration. A script revision invalidates narration and all later artifacts.
 5. **Timing module:** transcribes final WAV into word timestamps, compares transcription with script, then creates five-to-seven-word caption cues with shorter groups at natural breaks. Timing data is independent of position/style.
 6. **Renderer:** validates uploaded clips with ffprobe, mutes clip audio, fills a 9:16 frame, and burns captions in using a generated subtitle file. A clip longer than the narration is trimmed; a shorter clip is looped and its last repeat trimmed. The final MP4 ends with the final story audio, apart from unavoidable frame/codec rounding. ffprobe verifies the result before it is offered for review.
-7. **Posting-copy module:** creates and validates text for the three selected platforms after the story is stable. Copy is editable in review; there is no upload integration in the MVP.
+7. **Posting-copy module:** creates and validates one shared text set after the story is stable. Copy is editable in review; there is no upload integration in the MVP.
 8. **Local web layer:** settings, clip library, run status, video preview, story notes, subtitle-position notes, approval, and download. Long-running work is never performed inside an HTTP request.
 
 Keep the dependency direction simple: `web/cli → application service → persistence/pipeline → Ollama/TTS/ASR/FFmpeg`. Media stages should not know about HTTP or HTML. Avoid generic plugin interfaces until a second concrete engine is needed.
 
 ### Validation at each boundary
 
-- **User/API input:** FastAPI uses Pydantic v2 models to validate field types, allowed themes, positive and bounded duration/speed, selected platforms, and free-text lengths before a run is stored. [FastAPI request validation](https://fastapi.tiangolo.com/tutorial/body/)
-- **Ollama output:** Define small Pydantic models for story/plan (`script`, `summary`, explicit narrator identity), evaluation (criterion ratings, pass/fail, reasons), and posting copy (per-platform title, caption, hashtags). Configure these models to forbid extra fields and use strict field validation; reject missing fields, invalid enums, empty text, and out-of-range ratings. Send the same model's JSON Schema to Ollama and parse its response with Pydantic; malformed output gets a bounded retry, then a visible stage failure. [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [Pydantic models](https://pydantic.dev/docs/validation/latest/concepts/models/)
+- **User/API input:** FastAPI uses Pydantic v2 models to validate field types, allowed themes, positive and bounded duration/speed, and free-text lengths before a run is stored. [FastAPI request validation](https://fastapi.tiangolo.com/tutorial/body/)
+- **Ollama output:** Define small Pydantic models for story/plan (`script`, `summary`, explicit narrator identity), evaluation (criterion ratings, pass/fail, reasons), and one shared posting copy (title, caption, hashtags). Configure these models to forbid extra fields and use strict field validation; reject missing fields, invalid enums, empty text, and out-of-range ratings. Send the same model's JSON Schema to Ollama and parse its response with Pydantic; malformed output gets a bounded retry, then a visible stage failure. [Ollama structured outputs](https://docs.ollama.com/capabilities/structured-outputs), [Pydantic models](https://pydantic.dev/docs/validation/latest/concepts/models/)
 - **Business rules:** Check the resolved perspective, approximate word budget, required first-person narration for the validated preset, allowed platform set, and plot-similarity guard separately from Pydantic shape checks. The evaluator's judgment is advisory within a bounded revision loop; human review remains the final quality gate.
 - **Media output:** Validate voice-reference and uploaded-clip format with ffprobe, compare final-audio transcription with the script, and inspect rendered dimensions, streams, and audio/video end alignment before marking a stage complete.
 
@@ -106,14 +106,16 @@ The web UI uses the same JSON API that the CLI calls. Keep endpoints under `/api
 | --- | --- |
 | `GET/PUT /api/v1/settings` | Read and update validated defaults. |
 | `GET/POST /api/v1/clips`, `DELETE /api/v1/clips/{id}` | List/upload/deactivate clips. |
-| `GET/POST /api/v1/runs`, `GET /api/v1/runs/{id}` | List/start/inspect runs and stage status. |
+| `GET/POST /api/v1/runs`, `GET /api/v1/runs/{id}` | List/start/inspect runs and stage status. Run lists include the current story title when generated. |
 | `DELETE /api/v1/runs/{id}` | Explicitly remove a finished or failed run, its revisions, and generated artifacts; retain shared uploaded clips. |
 | `GET /api/v1/runs/{id}/revisions/{n}` | Inspect one preview, evaluation, and posting copy. |
 | `POST /api/v1/runs/{id}/revisions` | Submit a story or subtitle-position change request. |
-| `PUT /api/v1/runs/{id}/revisions/{n}/posting-copy` | Edit generated titles, captions, and hashtags while the revision awaits review. |
+| `PUT /api/v1/runs/{id}/revisions/{n}/posting-copy` | Edit the shared title, caption, and hashtags while the revision awaits review. Body is one posting-copy object. |
 | `POST /api/v1/runs/{id}/retry` | Retry a failed or interrupted stage. |
 | `POST /api/v1/runs/{id}/approve` | Approve the current revision, with its revision ID supplied for stale-request protection. |
 | `GET /api/v1/runs/{id}/video` | Stream the current reviewable or approved MP4; use a separate download disposition for export. |
+
+The posting-copy API now uses a single object rather than a platform-keyed map. Existing platform-keyed copy is projected as one object when read; stored historical JSON is left intact. Saved platform selections are ignored when reading older settings and are omitted from new settings and runs.
 
 Use short polling for progress in the local UI; no WebSockets or event bus in phase one. Keep the OpenAPI schema generated by FastAPI as the API reference. Do not expose direct path or arbitrary command endpoints.
 
