@@ -46,3 +46,20 @@ vm.runInContext(source,context);
 """
     result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_run_delete_requires_confirmation_and_clears_selection(tmp_path: Path):
+    html = TestClient(create_app(tmp_path)).get("/").text
+    assert 'id="delete-run"' in html
+    script = r"""
+const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
+const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
+const elements = new Map();
+function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'old',value:'',src:'old',href:'old',disabled:false,replaceChildren(){this.cleared=true},removeAttribute(key){this[key]=''},load(){},querySelectorAll(){return []}}); return elements.get(id); }
+let confirmed = false; let deletes = 0;
+const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},confirm:()=>confirmed,setInterval(){},fetch:async (url,options={})=>{if(options.method==='DELETE') deletes++; return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>[]}}});
+vm.runInContext(source,context); vm.runInContext("currentRun='abc'",context);
+(async()=>{await element('#delete-run').onclick(); assert.equal(deletes,0); confirmed=true; await element('#delete-run').onclick(); assert.equal(deletes,1); assert.equal(vm.runInContext('currentRun',context),null); assert.equal(element('#video').src,''); assert.equal(element('#story').textContent,''); assert.equal(element('#runs').value,'');})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+    result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr

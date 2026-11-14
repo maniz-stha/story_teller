@@ -1,6 +1,9 @@
 import hashlib
 import json
+import logging
 import random
+import re
+import shutil
 import sqlite3
 import subprocess
 import uuid
@@ -134,6 +137,43 @@ def approve_revision(conn: sqlite3.Connection, run_id: str, revision_no: int) ->
     except Exception:
         conn.rollback()
         raise
+
+
+def delete_run(conn: sqlite3.Connection, root: Path, run_id: str) -> None:
+    if not re.fullmatch(r"[0-9a-f]{32}", run_id):
+        raise LookupError("Run not found")
+    conn.execute("BEGIN IMMEDIATE")
+    staged = None
+    directory = root.resolve() / "runs" / run_id
+    try:
+        run = conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()
+        if not run:
+            raise LookupError("Run not found")
+        if run["status"] not in ("failed", "awaiting_review", "approved"):
+            raise ValueError("Only finished or failed runs can be deleted")
+        if directory.parent.is_symlink() or directory.is_symlink():
+            raise ValueError("Run files must stay in their own directory")
+        if directory.exists():
+            if not directory.is_dir():
+                raise ValueError("Run files must be a directory")
+            staged = directory.with_name(f".deleting-{run_id}-{uuid.uuid4().hex}")
+            directory.rename(staged)
+        conn.execute("DELETE FROM stage_attempts WHERE revision_id IN (SELECT id FROM revisions WHERE run_id=?)", (run_id,))
+        conn.execute("UPDATE revisions SET parent_id=NULL WHERE run_id=?", (run_id,))
+        conn.execute("DELETE FROM revisions WHERE run_id=?", (run_id,))
+        conn.execute("DELETE FROM runs WHERE id=?", (run_id,))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        if staged is not None:
+            staged.rename(directory)
+        raise
+    if staged is not None:
+        try:
+            shutil.rmtree(staged)
+        except OSError:
+            # shortcut: A failed purge leaves staged files, add startup cleanup if this occurs.
+            logging.getLogger(__name__).exception("Deleted run %s but could not remove staged files at %s", run_id, staged)
 
 
 def inspect_video(path: Path) -> tuple[float, int, int]:

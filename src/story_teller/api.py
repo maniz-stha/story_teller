@@ -13,6 +13,7 @@ from .service import (
     approve_revision,
     connect,
     create_run,
+    delete_run,
     get_settings,
     request_revision,
     save_settings,
@@ -95,6 +96,16 @@ def router(root: Path) -> APIRouter:
             result["inputs"] = json.loads(result.pop("inputs_json"))
             result["revisions"] = [dict(r) for r in conn.execute("SELECT id,number,kind,placement,created_at FROM revisions WHERE run_id=? ORDER BY number", (run_id,))]
             return result
+
+    @api.delete("/runs/{run_id}", status_code=204)
+    def remove_run(run_id: str) -> None:
+        with connect(root) as conn:
+            try:
+                delete_run(conn, root, run_id)
+            except LookupError as exc:
+                raise HTTPException(404, detail={"code": "run_not_found", "message": str(exc)}) from exc
+            except ValueError as exc:
+                raise HTTPException(409, detail={"code": "delete_conflict", "message": str(exc)}) from exc
 
     @api.get("/runs/{run_id}/revisions/{number}")
     def read_revision(run_id: str, number: int) -> dict[str, object]:
