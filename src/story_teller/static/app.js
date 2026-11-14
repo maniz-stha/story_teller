@@ -80,6 +80,7 @@ async function refresh() {
   }
   $('#approve').disabled = run.status !== 'awaiting_review';
   $('#retry').disabled = run.status !== 'failed';
+  $('#delete-run').disabled = !['failed', 'awaiting_review', 'approved'].includes(run.status);
   $('#download').href = run.approved_revision_id ? `${api}/runs/${currentRun}/video?download=true` : '#';
   await runs();
 }
@@ -93,6 +94,21 @@ $('#revise-story').onclick = () => act(() => revise('story',$('#story-note').val
 $('#revise-position').onclick = () => act(() => revise('subtitle_position',$('#position-note').value));
 $('#approve').onclick = () => act(async () => { await request(`/runs/${currentRun}/approve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision_no:currentRevision})}); await refresh(); });
 $('#retry').onclick = () => act(async () => { await request(`/runs/${currentRun}/retry`,{method:'POST'}); await refresh(); });
+$('#delete-run').onclick = () => {
+  if (!currentRun || !confirm('Permanently delete this story, all revisions, and generated files? Uploaded clips will be kept.')) return;
+  return act(async () => {
+    await request(`/runs/${currentRun}`, {method:'DELETE'});
+    currentRun = null; currentRevision = null; shownVideo = ''; shownStatus = null;
+    $('#runs').value = '';
+    $('#status').textContent = 'No run selected.';
+    $('#video').removeAttribute('src'); $('#video').load();
+    for (const id of ['story-title', 'story-meta', 'story', 'continuity-note', 'evaluation']) $(`#${id}`).textContent = '';
+    $('#copy').replaceChildren();
+    $('#approve').disabled = true; $('#retry').disabled = true; $('#delete-run').disabled = true;
+    $('#download').href = '#';
+    await runs();
+  });
+};
 $('#save-copy').onclick = () => act(async () => { const copy = {}; document.querySelectorAll('.copy-card').forEach(section => { const field = key => section.querySelector(`[data-field="${key}"]`).value; copy[section.dataset.platform] = {title:field('title'),caption:field('caption'),hashtags:field('hashtags').split(/\s+/).filter(Boolean)}; }); await request(`/runs/${currentRun}/revisions/${currentRevision}/posting-copy`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(copy)}); });
 Promise.all([request('/settings'),clips(),runs()]).then(([settings]) => loadSettings(settings)).catch(error => notice(error.message));
 setInterval(() => refresh().catch(error => notice(error.message)),3000);

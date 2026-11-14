@@ -107,6 +107,7 @@ The web UI uses the same JSON API that the CLI calls. Keep endpoints under `/api
 | `GET/PUT /api/v1/settings` | Read and update validated defaults. |
 | `GET/POST /api/v1/clips`, `DELETE /api/v1/clips/{id}` | List/upload/deactivate clips. |
 | `GET/POST /api/v1/runs`, `GET /api/v1/runs/{id}` | List/start/inspect runs and stage status. |
+| `DELETE /api/v1/runs/{id}` | Explicitly remove a finished or failed run, its revisions, and generated artifacts; retain shared uploaded clips. |
 | `GET /api/v1/runs/{id}/revisions/{n}` | Inspect one preview, evaluation, and posting copy. |
 | `POST /api/v1/runs/{id}/revisions` | Submit a story or subtitle-position change request. |
 | `PUT /api/v1/runs/{id}/revisions/{n}/posting-copy` | Edit generated titles, captions, and hashtags while the revision awaits review. |
