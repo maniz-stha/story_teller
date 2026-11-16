@@ -45,6 +45,12 @@ def test_approved_video_download_and_shared_copy_validation(tmp_path: Path):
     assert client.post(f"/api/v1/runs/{run_id}/approve", json={"revision_no": 1}).status_code == 200
     downloaded = client.get(f"/api/v1/runs/{run_id}/video?download=true")
     assert downloaded.status_code == 200 and downloaded.content == b"preview"
+    assert downloaded.headers["content-disposition"] == 'attachment; filename="story.mp4"'
+    with connect(tmp_path) as conn:
+        conn.execute("UPDATE revisions SET model_info_json=? WHERE id=?", ('{"story_title":"The Clinic: Wrong/Number"}', rev))
+        conn.commit()
+    titled_download = client.get(f"/api/v1/runs/{run_id}/video?download=true")
+    assert titled_download.headers["content-disposition"] == "attachment; filename*=utf-8''The%20Clinic-%20Wrong-Number.mp4"
 
 
 def test_copy_edit_claims_write_lock_before_reading_approval_state(tmp_path: Path, monkeypatch):

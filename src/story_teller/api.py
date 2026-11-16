@@ -1,4 +1,5 @@
 import json
+import re
 import secrets
 from pathlib import Path
 
@@ -172,12 +173,17 @@ def router(root: Path) -> APIRouter:
             if not run:
                 raise HTTPException(404, detail={"code": "run_not_found", "message": "Run not found"})
             revision_id = run["approved_revision_id"] if download or run["status"] != "awaiting_review" else run["current_revision_id"]
-            row = conn.execute("SELECT video_path FROM revisions WHERE id=?", (revision_id,)).fetchone() if revision_id else None
+            row = conn.execute("SELECT video_path,model_info_json FROM revisions WHERE id=?", (revision_id,)).fetchone() if revision_id else None
             if not row or not row["video_path"]:
                 raise HTTPException(404, detail={"code": "video_not_ready", "message": "Video is not ready"})
             path = resolve_artifact(root, row["video_path"])
             if not path.is_file():
                 raise HTTPException(404, detail={"code": "video_missing", "message": "Video file is missing"})
-        return FileResponse(path, media_type="video/mp4", filename="story.mp4" if download else None)
+        filename = None
+        if download:
+            title = json.loads(row["model_info_json"] or "{}").get("story_title") or "story"
+            safe_title = re.sub(r'[<>:"/\\|?*\x00-\x1f]', '-', title).strip(' .') or "story"
+            filename = f"{safe_title}.mp4"
+        return FileResponse(path, media_type="video/mp4", filename=filename)
 
     return api

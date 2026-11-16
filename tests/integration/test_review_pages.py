@@ -48,6 +48,38 @@ vm.runInContext(source,context);
     assert result.returncode == 0, result.stderr
 
 
+def test_generation_progress_survives_reload_and_reenables_button(tmp_path: Path):
+    html = TestClient(create_app(tmp_path)).get("/").text
+    assert 'id="generation-progress"' in html
+    script = r"""
+const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
+const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
+const elements = new Map();
+function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'',value:'',disabled:false,replaceChildren(...options){this.options=options}}); return elements.get(id); }
+let status = 'queued';
+let posts = 0;
+const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},setInterval(){},fetch:async (url,options={})=>{if(options.method==='POST') posts++; return {ok:true,status:200,json:async()=>url.endsWith('/runs') ? [{id:'run123456',title:'The cake',theme:'family conflict',status}] : {status,revisions:[{number:1}],error:null,approved_revision_id:null}}}});
+vm.runInContext(source,context);
+(async()=>{
+  await vm.runInContext('runs()',context);
+  assert.equal(vm.runInContext('currentRun',context),'run123456');
+  assert.equal(element('#generate').disabled,true);
+  assert.match(element('#generation-progress').textContent,/Queued/);
+  await element('#generate').onclick(); assert.equal(posts,0);
+  status='evaluating'; await vm.runInContext('runs()',context);
+  assert.match(element('#generation-progress').textContent,/Evaluating story/);
+  status='awaiting_review'; await vm.runInContext('runs()',context);
+  assert.equal(element('#generate').disabled,false);
+  assert.match(element('#generation-progress').textContent,/ready for review/i);
+  status='failed'; await vm.runInContext('runs()',context);
+  assert.equal(element('#generate').disabled,false);
+  assert.match(element('#generation-progress').textContent,/Generation failed/);
+})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+    result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
+
+
 def test_model_selectors_load_provider_labeled_options():
     script = r"""
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');

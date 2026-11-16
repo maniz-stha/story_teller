@@ -43,7 +43,7 @@ def run_stage(stage: str, conn: sqlite3.Connection, root: Path, run: sqlite3.Row
         recent = [row[0] for row in conn.execute("SELECT v.summary FROM revisions v JOIN runs r ON r.approved_revision_id=v.id WHERE v.summary IS NOT NULL ORDER BY r.updated_at DESC LIMIT 20")]
         assert llm is not None
         draft = generate_story(inputs, recent, llm, note=_story_note(conn, revision))
-        metadata = {"writer": choice, "writer_prompt": 2, "story_title": draft.title, "word_count": len(draft.script.split()), "estimated_duration_seconds": len(draft.script.split()) * 60 / int(inputs["narration_speed"])}
+        metadata = {"writer": choice, "writer_prompt": 4, "story_title": draft.title, "word_count": len(draft.script.split()), "estimated_duration_seconds": len(draft.script.split()) * 60 / int(inputs["narration_speed"])}
         conn.execute("UPDATE revisions SET story=?,summary=?,narrator=?,model_info_json=? WHERE id=?", (draft.script, draft.summary, draft.narrator, json.dumps(metadata), revision["id"]))
         conn.commit()
     elif stage == "evaluating":
@@ -51,7 +51,7 @@ def run_stage(stage: str, conn: sqlite3.Connection, root: Path, run: sqlite3.Row
         metadata = json.loads(revision["model_info_json"] or "{}")
         draft = StoryDraft(script=revision["story"], summary=revision["summary"], narrator=revision["narrator"], title=metadata.get("story_title"))
         assert llm is not None
-        metadata.update({"evaluator": choice, "evaluation_prompt": 2})
+        metadata.update({"evaluator": choice, "evaluation_prompt": 3})
         for retry in range(3):
             try:
                 target_words = round(int(inputs["target_duration"]) * int(inputs["narration_speed"]) / 60)

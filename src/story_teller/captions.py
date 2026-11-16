@@ -18,11 +18,64 @@ class CaptionCue:
     end: float
 
 
+_NUMBER_WORDS = {word: value for value, word in enumerate(
+    ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+     "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
+)}
+_NUMBER_WORDS.update(dict(zip(["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"], range(20, 100, 10))))
+
+
+def _comparison_words(text: str) -> list[str]:
+    text = re.sub(r"(?<=\d)\s*,\s*(?=\d{3}\b)", "", text.lower().replace("’", "'"))
+    words = re.findall(r"\w+(?:'\w+)*", text)
+    result = []
+    i = 0
+    while i < len(words):
+        if words[i] in _NUMBER_WORDS:
+            total = group = 0
+            previous_unit = False
+            while i < len(words):
+                word = words[i]
+                if word in _NUMBER_WORDS:
+                    amount = _NUMBER_WORDS[word]
+                    if previous_unit and amount < 20:
+                        break
+                    group += amount
+                    previous_unit = amount < 20
+                elif word == "hundred":
+                    group = max(group, 1) * 100
+                    previous_unit = False
+                elif word == "thousand":
+                    total += max(group, 1) * 1000
+                    group = 0
+                    previous_unit = False
+                elif word == "and" and (group >= 100 or total) and i + 1 < len(words) and words[i + 1] in _NUMBER_WORDS:
+                    pass
+                else:
+                    break
+                i += 1
+            result.append(str(total + group))
+        elif words[i].isdigit():
+            result.append(str(int(words[i])))
+            i += 1
+        else:
+            result.append(words[i])
+            i += 1
+            continue
+        if i < len(words) and words[i] in ("dollar", "dollars", "percent"):
+            i += 1
+    return result
+
+
 def validate_transcript(script: str, transcript: str) -> None:
-    expected = re.findall(r"\w+(?:'\w+)*", script.lower().replace("’", "'"))
-    actual = re.findall(r"\w+(?:'\w+)*", transcript.lower().replace("’", "'"))
-    comparison = SequenceMatcher(None, expected, actual)
-    if comparison.ratio() < 0.97 or any(max(end - start, actual_end - actual_start) > 3 for tag, start, end, actual_start, actual_end in comparison.get_opcodes() if tag != "equal"):
+    expected = _comparison_words(script)
+    actual = _comparison_words(transcript)
+    comparison = SequenceMatcher(None, expected, actual, autojunk=False)
+    if comparison.ratio() < 0.97:
+        raise ValueError("Narration transcript differs materially from script")
+    for tag, start, end, actual_start, actual_end in comparison.get_opcodes():
+        if tag == "equal" or max(end - start, actual_end - actual_start) <= 3:
+            continue
         raise ValueError("Narration transcript differs materially from script")
 
 
@@ -30,7 +83,7 @@ def time_words(audio: Path, script: str) -> list[TimedWord]:
     from faster_whisper import WhisperModel
 
     model = WhisperModel("small.en", device="cpu", compute_type="int8")
-    segments, _ = model.transcribe(str(audio), word_timestamps=True)
+    segments, _ = model.transcribe(str(audio), word_timestamps=True, condition_on_previous_text=False)
     words = [TimedWord(word.word.strip(), word.start, word.end) for segment in segments for word in (segment.words or [])]
     validate_transcript(script, " ".join(word.text for word in words))
     return words

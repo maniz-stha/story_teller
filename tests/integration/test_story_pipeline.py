@@ -29,6 +29,8 @@ def test_writing_and_evaluation_persist_version(tmp_path: Path, monkeypatch):
         assert saved["story"].startswith("I found")
         assert '"pass":true' in saved["evaluation_json"]
         assert json.loads(saved["model_info_json"])["writer"] == "ollama/gemma4:12b"
+        assert json.loads(saved["model_info_json"])["writer_prompt"] == 4
+        assert json.loads(saved["model_info_json"])["evaluation_prompt"] == 3
         assert json.loads(saved["model_info_json"])["story_title"] == "The hidden letter"
         assert json.loads(saved["model_info_json"])["word_count"] == 390
         assert json.loads(saved["model_info_json"])["estimated_duration_seconds"] == 90

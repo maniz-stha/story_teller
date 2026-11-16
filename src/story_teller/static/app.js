@@ -4,6 +4,7 @@ let currentRun = null;
 let currentRevision = null;
 let shownVideo = '';
 let shownStatus = null;
+let submitting = false;
 function notice(message) { $('#notice').textContent = message; }
 async function request(path, options = {}) {
   const response = await fetch(api + path, options);
@@ -50,9 +51,19 @@ async function clips() {
 async function runs() {
   const items = await request('/runs');
   const select = $('#runs');
+  const stages = {queued:'Queued for the worker', working:'Starting', writing:'Writing story (1 of 6)', evaluating:'Evaluating story (2 of 6)', narrating:'Recording narration (3 of 6)', timing:'Timing subtitles (4 of 6)', rendering:'Rendering video (5 of 6)', copy:'Writing posting copy (6 of 6)'};
+  const active = items.filter(item => stages[item.status]);
+  if (!currentRun && active.length) currentRun = active[0].id;
   const selected = currentRun || select.value;
   select.replaceChildren(new Option('Select a run', ''), ...items.map(item => new Option(`${item.title || item.theme} · ${item.status} · ${item.id.slice(0,8)}`, item.id)));
   select.value = selected;
+  $('#generate').disabled = submitting || active.length > 0;
+  const current = items.find(item => item.id === selected);
+  $('#generation-progress').textContent = submitting ? 'Submitting video generation…' : active.length
+    ? active.map(item => `${item.title || item.theme} · ${stages[item.status]} · ${item.id.slice(0,8)}`).join('\n')
+    : current?.status === 'awaiting_review' ? 'Video ready for review.'
+    : current?.status === 'failed' ? 'Generation failed. See Review for the reason and retry.'
+    : 'No video generation in progress.';
 }
 function copyEditor(value) {
   const section = document.createElement('div'); section.className = 'copy-card';
@@ -64,6 +75,7 @@ function copyEditor(value) {
   return section;
 }
 async function refresh() {
+  await runs();
   if (!currentRun) return;
   const run = await request(`/runs/${currentRun}`);
   $('#status').textContent = `Status: ${run.status}${run.error ? ' · ' + run.error : ''}`;
@@ -87,11 +99,22 @@ async function refresh() {
   $('#retry').disabled = run.status !== 'failed';
   $('#delete-run').disabled = !['failed', 'awaiting_review', 'approved'].includes(run.status);
   $('#download').href = run.approved_revision_id ? `${api}/runs/${currentRun}/video?download=true` : '#';
-  await runs();
 }
 async function act(action) { try { await action(); notice('Saved.'); } catch (error) { notice(error.message); } }
 $('#save').onclick = () => act(async () => { await request('/settings', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}); });
-$('#generate').onclick = () => act(async () => { const run = await request('/runs', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({overrides:payload()})}); currentRun = run.id; currentRevision = null; shownVideo = ''; shownStatus = null; await refresh(); });
+$('#generate').onclick = async () => {
+  if ($('#generate').disabled) return;
+  submitting = true;
+  $('#generate').disabled = true;
+  $('#generation-progress').textContent = 'Submitting video generation…';
+  try {
+    const run = await request('/runs', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({overrides:payload()})});
+    currentRun = run.id; currentRevision = null; shownVideo = ''; shownStatus = null;
+    await refresh();
+    notice('Video queued.');
+  } catch (error) { notice(error.message); }
+  finally { submitting = false; await runs().catch(error => notice(error.message)); }
+};
 $('#clip').onchange = () => act(async () => { const file = $('#clip').files[0]; if (!file) return; const form = new FormData(); form.append('file',file); await request('/clips',{method:'POST',body:form}); await clips(); });
 $('#runs').onchange = () => { currentRun = $('#runs').value; currentRevision = null; shownVideo = ''; shownStatus = null; act(refresh); };
 async function revise(kind, note) { await request(`/runs/${currentRun}/revisions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,note})}); currentRevision = null; shownVideo = ''; shownStatus = null; await refresh(); }
@@ -115,5 +138,5 @@ $('#delete-run').onclick = () => {
   });
 };
 $('#save-copy').onclick = () => act(async () => { const section = $('.copy-card'); const field = key => section.querySelector(`[data-field="${key}"]`).value; const copy = {title:field('title'),caption:field('caption'),hashtags:field('hashtags').split(/\s+/).filter(Boolean)}; await request(`/runs/${currentRun}/revisions/${currentRevision}/posting-copy`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(copy)}); });
-Promise.all([request('/settings'),models(),clips(),runs()]).then(([settings]) => loadSettings(settings)).catch(error => notice(error.message));
+Promise.all([request('/settings'),models(),clips()]).then(async ([settings]) => { loadSettings(settings); await refresh(); }).catch(error => notice(error.message));
 setInterval(() => refresh().catch(error => notice(error.message)),3000);

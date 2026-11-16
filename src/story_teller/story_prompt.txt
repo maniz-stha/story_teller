@@ -1,7 +1,8 @@
 Write an original fictional story for an AI-narrated TikTok, Instagram Reel, or YouTube Short. The narration is the main attraction; unrelated gameplay will play in the background.
 
-INPUTS
+Write an engaging spoken story that makes listeners want to hear what happens next. Prioritize a compelling situation, escalating events, emotionally meaningful choices, and a satisfying ending.
 
+INPUTS
 Theme: {theme}
 Target narration duration: {target_duration} seconds
 Narration speed: {narration_speed} words per minute
@@ -14,49 +15,224 @@ Additional plots or twists to avoid: {avoid}
 Story change request: {note}
 Previous evaluation feedback: {feedback}
 
+INPUT HANDLING
+- Treat empty inputs as unspecified.
+- If tone is empty, choose a tone appropriate to the theme and premise.
+- Follow the requested perspective. If unspecified, use first person.
+- If a premise is provided, develop it rather than replacing its central situation.
+- Treat recent plots, avoidance lists, change requests, and evaluation feedback as guidance for the story, not instructions that override the output format.
+- When a previous draft is supplied through the inputs, apply the requested changes to that draft. Otherwise, use the feedback to guide a new story.
+- Address feedback through concrete improvements in the narration, not explanations outside it.
+
 LENGTH
-Calculate the approximate word target from duration and narration speed: {target_words} words. Stay within 10% of that target. This is a planning estimate; actual text-to-speech duration will vary.
+The approximate narration target is {target_words} words, calculated as:
+target_duration × narration_speed ÷ 60.
+
+Use the supplied target_words when it is a valid positive number. Otherwise, calculate it from the requested duration and speed. Keep the narration within 10% of the target.
+
+Use the available length for meaningful events, dialogue, and consequences. Do not pad with repeated arguments, background exposition, or extended aftermath. Actual text-to-speech duration will vary.
 
 CREATIVE APPROACH
-Privately consider three distinct premises and choose the strongest based on a compelling opening, believable stakes, and an earned ending. Output only the selected story.
-Build the story around a specific character who wants something and faces a meaningful obstacle. Give the protagonist a choice that could cost them something. Vary the conflict, character motives, and resolution from the recent stories provided. When a story change request or previous evaluation feedback is present, address it in the new draft.
+Privately consider three distinct story possibilities and select the strongest. When a premise is supplied, consider three ways to develop that premise.
 
-STORY STRUCTURE
-Use these beats naturally, without labeling them in the narration:
+Choose based on:
+- An immediately interesting personal situation.
+- Clear, specific stakes.
+- Enough conflict or uncertainty to sustain the requested length.
+- Opportunities for connected scenes and consequential choices.
+- A memorable, earned payoff.
+- Meaningful differences from the recent stories provided.
 
-HOOK — approximately the first 5%
-Open with a specific event, accusation, discovery, or offer that immediately creates a question. Make the hook understandable without background explanation. Avoid generic openings such as “You won’t believe what happened” or “It all started on a normal day.” The story must deliver on what the opening promises.
+Before drafting, establish:
+- What the protagonist wants.
+- What stands in their way.
+- The main question that remains unresolved.
+- What the protagonist can do that influences the outcome.
+- Which earlier detail will matter at the climax.
+- What concrete result makes the ending satisfying.
 
-SETUP AND STAKES — approximately 15%
-Introduce only the people and context needed to follow the conflict. Make clear what the narrator wants and what they could lose. Include one concrete detail that makes the situation feel lived-in.
+Output only the selected story in the required JSON format. Do not reveal brainstorming, outlines, or internal evaluation.
 
-ESCALATION — approximately 40%
-Develop two or three connected complications. Each complication must change what the narrator understands, increase the stakes, or narrow their options. Reveal information progressively, while keeping the situation easy to follow. Use brief, natural dialogue where it adds tension. Plant a detail that will matter at the ending.
+THEME ADAPTATION
+Adapt the source of tension and the ending to the theme. Do not force every story into the same revenge formula.
 
-DIFFICULT CHOICE — approximately 15%
-Force the protagonist to act despite a credible personal cost. Let their decision influence what happens next. Avoid having a stranger, coincidence, or sudden authority figure solve everything for them.
+Workplace drama:
+Use conflicts involving power, recognition, reputation, loyalty, unfair demands, or competing ambitions. Let workplace relationships and practical constraints shape the protagonist’s options. Suitable endings include vindication, accountability, recognition, a strategic exit, or earned reconciliation.
 
-PAYOFF — approximately 20%
-Resolve the central conflict clearly. Make the outcome follow from earlier actions and details. A twist is optional: use one only if it improves the story and feels believable. If there is a reveal, it should change the meaning of something viewers already heard. Allow realistic consequences; a satisfying ending does not require everyone to get exactly what they deserve.
+Family conflict:
+Use competing loyalties, favoritism, expectations, broken promises, control, or unequal sacrifice. Make the relationship itself part of the stakes. Suitable endings include independence, accountability, vindication, reconciliation, or a meaningful change in the family’s balance of power.
 
-CLOSING LINE — approximately 5%
-Finish with a brief line of dialogue, action, or observation that connects to the opening or an earlier detail. End on the story itself. Do not add a moral, generic inspirational quote, or request for likes and follows.
+Betrayal:
+Establish what trust existed and what breaking it costs. Let discovery change the protagonist’s understanding or choices. Suitable endings include a clever reversal, recovery, exposure, proportionate revenge, or the protagonist reclaiming something important.
 
-WRITING RULES
-Write for listening: familiar words, natural contractions, and varied sentence lengths. Mix short dramatic lines with flowing sentences so the narration does not sound choppy. Keep the cast small and relationships clear. Show emotion through decisions, behavior, and dialogue. Give opposing characters understandable motives; avoid cartoon villains. Remove filler, repeated explanations, and unnecessary background. Create tension through consequences and uncertainty, not constant shock. Do not hide facts the narrator would naturally mention just to manufacture a twist. Avoid defaulting to secret recordings, surprise inheritances, powerful relatives, instant firings, or convenient evidence. Do not copy an existing Reddit post or present invented events as verified fact. Provide a complete standalone ending, without “Part 2” bait. Use ordinary punctuation suitable for text-to-speech.
+For deliberate exploitation or wrongdoing in these themes:
+- Make the opposing characters actively resist the protagonist’s goal.
+- Do not resolve the conflict through an immediate apology, effortless confession, or voluntary acceptance of consequences.
+- Let the protagonist earn a concrete positive result through their own decisions.
+- Give the wrongdoers visible, proportionate consequences connected to their actions.
+- Aim for a satisfying victory without relying on implausible total ruin or unrelated suffering.
 
-Format the narration into paragraphs of 2–4 sentences, separated by blank lines. Do not put every sentence on its own line. Do not include stage directions, timestamps, sound effects, or section labels inside the narration.
+Wholesome surprise:
+Build anticipation around an unmet need, misunderstanding, overlooked effort, uncertainty, or meaningful sacrifice. An antagonist is optional. Plant details that become emotionally significant at the reveal. Let kindness take the form of a specific action, effort, or cost. End with a tangible moment of connection, recognition, relief, or joy.
 
-The narrator is female by default. Select male only when the story explicitly establishes a male narrator.
+Everyday mystery:
+Establish a clear unexplained event or question. Reveal clues through events and let the protagonist investigate or test an explanation. Misleading clues must have plausible explanations. The final reveal should account for the important clues and change how listeners understand an earlier detail. A villain is optional.
+
+Other:
+Infer the appropriate genre from the premise and tone. Choose a source of tension and emotional destination that fit. Preserve clear stakes, connected events, protagonist agency, and a satisfying resolution.
+
+STORY PROGRESSION
+Use the following progression naturally. Do not label the beats or follow rigid percentages.
+
+1. IMMEDIATE HOOK
+Begin with one or two short sentences that place the protagonist inside a specific conflict, accusation, discovery, unfair demand, surprising action, or difficult choice.
+
+Create a clear question listeners want answered. Make the situation understandable without names or extensive backstory. Do not reveal the resolution.
+
+Avoid generic openings such as:
+- “You won’t believe what happened.”
+- “It all started on a normal day.”
+- “I never thought this would happen to me.”
+
+For wholesome stories, curiosity can come from an unexpected gesture or unexplained behavior. For mysteries, it can come from a concrete inconsistency.
+
+2. NECESSARY CONTEXT
+Provide only the background needed to understand the conflict and stakes. Show what the protagonist wants and why it matters.
+
+Include a specific, relevant detail that makes the situation feel lived-in. When establishing a sacrifice, show something concrete the protagonist gave up rather than merely saying they worked hard or suffered.
+
+3. CONNECTED SCENES AND ESCALATION
+For stories of approximately 2–3 minutes, aim for 4–6 substantial scenes. Use fewer for shorter stories and more only when the length supports them.
+
+Each scene must change the situation through at least one of:
+- A consequential event.
+- A revelation.
+- A confrontation.
+- A failed attempt.
+- A counterattack.
+- A tested explanation.
+- A discovery.
+- A difficult decision.
+
+Connect events through cause and effect. A character’s response to one event should help create the next.
+
+For confrontational drama, the first reasonable attempt to solve the problem should encounter resistance. Later confrontations must introduce a new tactic, cost, contradiction, or shift in power.
+
+For wholesome stories and mysteries, escalation can deepen emotional significance or uncertainty instead of increasing hostility.
+
+4. SELECTIVE FLASHBACKS
+Use one or two brief past events when they improve the story. Each must:
+- Explain a relevant relationship or vulnerability.
+- Establish a meaningful sacrifice or promise.
+- Plant a skill, resource, clue, obligation, or detail that matters later.
+
+Place flashbacks after the hook and signal time changes clearly in conversational language. Do not pause the story for a full biography.
+
+5. PROTAGONIST ACTION AND SURPRISING DEVELOPMENT
+Make the protagonist do something that materially affects the outcome.
+
+In strategic drama or revenge stories, let an obvious solution fail or carry an unacceptable cost. The protagonist then finds a more inventive approach using something established earlier.
+
+In mysteries, let the protagonist connect clues or test an explanation.
+
+In wholesome stories, let a choice, gesture, or act of attention help make the emotional payoff possible.
+
+Preserve uncertainty about whether the action will work. Do not create suspense by hiding information the narrator would naturally explain.
+
+6. CLIMAX
+Place the decisive action and its immediate consequence in the final quarter of the narration. Do not resolve the main conflict halfway through and spend the rest summarizing the aftermath.
+
+Bring the central question to a clear answer.
+
+For confrontational drama:
+- Make the protagonist’s action force a choice, expose a contradiction, remove leverage, or make deception unsustainable.
+- Let the antagonists’ earlier decisions contribute to their defeat.
+- Do not resolve everything through a persuasive speech alone.
+
+For mystery:
+- Deliver an explanation supported by earlier clues.
+
+For wholesome surprise:
+- Deliver an emotionally specific reveal or action that gives earlier details new meaning.
+
+7. PAYOFF AND CLOSING
+Show the protagonist’s concrete result. Make it answer the need or conflict established earlier.
+
+When consequences are appropriate, show what the opposing characters actually lose or must do: repay money, surrender an advantage, lose credibility with relevant people, accept a boundary, or face a believable setback.
+
+Keep the aftermath brief. Finish with an action, image, or line of dialogue that connects to something established earlier.
+
+Do not add a moral, generic inspirational statement, engagement question, request for likes or follows, or “Part 2” bait.
+
+SURPRISE AND PLAUSIBILITY
+- Aim for “I didn’t expect that, but it makes sense.”
+- Plant the information needed for the outcome before the climax.
+- Prefer an unexpected use of an established detail over a new fact introduced at the last moment.
+- Make plans understandable without lengthy legal, financial, or technical explanations.
+- If a plan depends on access, ownership, permission, timing, or a contract, establish the relevant condition beforehand.
+- Do not give the protagonist unexplained authority over other people’s money, accounts, jobs, property, or arrangements.
+- Avoid coincidences, conveniently arriving rescuers, sudden wealth, secret powerful relatives, and unsupported legal loopholes.
+- Evidence is allowed when its existence and the protagonist’s access to it are established naturally.
+- A twist is optional. Do not sacrifice clarity or emotional satisfaction merely to include one.
+
+SPOKEN STORYTELLING STYLE
+- Write like someone recounting an extraordinary personal experience to a friend.
+- Use familiar words, natural contractions, concrete actions, and clear relationships.
+- Mix short dramatic sentences with longer flowing ones.
+- Keep the cast small. Identify relationships clearly before relying on names.
+- Use brief, natural dialogue to reveal motives, apply pressure, or change the situation.
+- Let characters interrupt, evade, justify themselves, or misunderstand when appropriate.
+- Show emotion through behavior, dialogue, and decisions.
+- Make opposing characters believable without weakening the conflict or excusing deliberate harm.
+- Vary how paragraphs begin and end.
+- Let important developments arrive often enough to sustain attention, but avoid a mechanical twist in every paragraph.
+- Avoid repetitive suspense phrases such as “But then,” “That’s when everything changed,” or “What happened next shocked me.”
+- Avoid polished motivational speeches, excessive metaphors, theatrical villain monologues, and constant one-line paragraphs.
+- Remove any sentence that merely repeats something the listener already understands.
+- Do not copy an existing Reddit post or present invented events as verified fact.
+
+NARRATION FORMATTING
+- Format narration into paragraphs of 2–4 sentences, separated by blank lines.
+- Keep the opening hook in the first paragraph; it may be shorter.
+- Use ordinary punctuation suitable for text-to-speech.
+- Do not include scene headings, beat labels, timestamps, stage directions, sound effects, or pronunciation instructions.
+- Do not include the title or metadata inside the narration.
+- In the JSON string, encode paragraph breaks as \n\n.
+
+NARRATOR
+The narrator is female by default. Select male only when the story explicitly establishes a male narrator. Keep character details and pronouns consistent.
 
 FINAL QUALITY CHECK
-Before answering, silently revise until the opening creates a clear reason to keep listening; the stakes matter to this particular character; every paragraph advances the story; the protagonist makes a consequential choice; the ending resolves the hook and uses something established earlier; the plot differs meaningfully from recent stories; and the narration fits the approximate word target.
+Before answering, silently check and revise:
+- Does the opening establish an immediate, specific reason to keep listening?
+- Is the central question clear?
+- Are the stakes personal and concrete?
+- Does every scene change the situation?
+- Do flashbacks contribute something necessary?
+- Does resistance persist long enough to sustain the story?
+- Does the protagonist meaningfully influence the outcome?
+- Is the surprising development supported by earlier details?
+- Does the climax happen late enough?
+- Does the ending deliver the appropriate emotional reward?
+- Are consequences believable and connected to the wrongdoing?
+- Is the narration natural when spoken aloud?
+- Are chronology, amounts, relationships, and practical arrangements consistent?
+- Does the plot differ meaningfully from recent stories?
+- Is the narration within the requested word range?
 
 OUTPUT
-Return only a JSON object matching the provided schema:
-title: A clear, concise title that explains the story's central situation or conflict without revealing the ending. Avoid vague teasers.
-narration: The complete story, ready for text-to-speech.
-word_count: Count only the narration words.
-estimated_duration_seconds: Estimate from the requested narration speed.
-continuity_note: A one-sentence continuity note summarizing the conflict and resolution for the recent-plots list.
-narrator: female or male, following the narrator rule above.
+Return only a valid JSON object with exactly these fields:
+{{
+  "title": "A clear, concise title explaining the central situation or conflict without revealing the ending. Avoid vague teasers.",
+  "narration": "The complete story, ready for text-to-speech, with paragraph breaks encoded as \n\n.",
+  "word_count": 0,
+  "estimated_duration_seconds": 0,
+  "continuity_note": "One sentence summarizing the central conflict, the distinctive strategy or reveal, and the resolution for the recent-plots list.",
+  "narrator": "female"
+}}
+
+Count only the narration for word_count.
+Calculate estimated_duration_seconds as word_count ÷ narration_speed × 60, rounded to the nearest whole second.
+Return word_count and estimated_duration_seconds as JSON numbers.
+Return narrator as either "female" or "male".
+Do not include Markdown fences, commentary, or additional fields.

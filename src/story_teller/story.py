@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class StoryDraft(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
-    script: str = Field(min_length=100, max_length=5000)
+    script: str = Field(min_length=100, max_length=10000)
     summary: str = Field(min_length=10, max_length=400)
     narrator: Literal["female", "male"]
     title: str | None = Field(default=None, min_length=3, max_length=120)
@@ -18,7 +18,7 @@ class StoryDraft(BaseModel):
 class StoryOutput(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True)
     title: str = Field(min_length=3, max_length=120)
-    narration: str = Field(min_length=100, max_length=5000)
+    narration: str = Field(min_length=100, max_length=10000)
     word_count: int = Field(gt=0)
     estimated_duration_seconds: float = Field(gt=0)
     continuity_note: str = Field(min_length=10, max_length=400)
@@ -79,13 +79,10 @@ class OpenAI:
         key = openai_api_key()
         if not key:
             raise ValueError("OPENAI_API_KEY is required for the selected OpenAI model; set it in .env")
-        # OpenAI strict schemas omit Pydantic's validation keywords; Pydantic checks the result.
+        # OpenAI strict schemas reject defaults; preserve supported limits and validate locally too.
         def strict_shape(value: Any) -> Any:
             if isinstance(value, dict):
-                return {k: strict_shape(v) for k, v in value.items() if k not in {
-                    "minLength", "maxLength", "minimum", "maximum", "exclusiveMinimum",
-                    "exclusiveMaximum", "minItems", "maxItems", "pattern", "default",
-                }}
+                return {k: strict_shape(v) for k, v in value.items() if k != "default"}
             if isinstance(value, list):
                 return [strict_shape(item) for item in value]
             return value
@@ -136,15 +133,15 @@ def generate_story(inputs: dict[str, Any], recent: list[str], llm: Ollama | Open
         theme=inputs.get("theme", "random"),
         target_duration=inputs["target_duration"],
         narration_speed=inputs["narration_speed"],
-        tone=inputs.get("tone") or "suspenseful, believable, emotionally engaging",
-        perspective=inputs.get("perspective", "first person"),
-        audience=inputs.get("audience", "general adult audience"),
-        language=inputs.get("language", "English"),
-        premise=inputs.get("premise") or "none; invent an original idea",
-        recent="; ".join(recent) or "none",
-        avoid=inputs.get("avoid") or "none",
-        note=note or "none",
-        feedback=feedback or "none",
+        tone=inputs.get("tone") or "",
+        perspective=inputs.get("perspective") or "",
+        audience=inputs.get("audience") or "",
+        language=inputs.get("language") or "",
+        premise=inputs.get("premise") or "",
+        recent="; ".join(recent),
+        avoid=inputs.get("avoid") or "",
+        note=note or "",
+        feedback=feedback or "",
         target_words=target_words,
     ))
     result = llm.structured(prompt, StoryOutput)
@@ -153,16 +150,21 @@ def generate_story(inputs: dict[str, Any], recent: list[str], llm: Ollama | Open
 
 def evaluate_story(draft: StoryDraft, inputs: dict[str, object], llm: Ollama | OpenAI) -> Evaluation:
     prompt = (
-        "Evaluate this short story against the requested theme and the natural six-beat shape: "
-        "specific hook, setup with personal stakes, connected escalation, consequential choice "
-        "with a credible cost, earned payoff using a planted detail, and a closing line tied "
-        "to the opening without a generic moral. Check believable motives, clear character "
-        "relationships, emotional engagement, and easy-to-follow narration. Rate hook, coherence, "
-        "and ending from 1 to 5. Identify the central question raised by the setup. Set "
-        "resolved=false if the ending does not answer it, if the protagonist's choice does not "
-        "affect the outcome, or if the payoff relies on a coincidence or sudden rescuer. Pass "
-        "only if all scores are at least 3, resolved=true, and all beats are present. "
-        "Give concrete reasons. "
+        "Evaluate this spoken story against its requested theme, premise, and length. Check an "
+        "immediate specific hook, personal stakes, connected scenes that change the situation, "
+        "meaningful protagonist action, a supported development, a decisive climax in the final quarter, "
+        "and a concrete payoff with brief closing tied to an earlier detail. Identify the central question "
+        "and whether the ending answers it. Check plausible causality, clear relationships, natural speech, "
+        "and a satisfying emotional result appropriate to the theme. For deliberate wrongdoing in workplace, "
+        "family, or betrayal stories, check active resistance and visible proportionate consequences; "
+        "do not demand an antagonist or punishment in wholesome stories or an everyday mystery. For mystery, "
+        "check that earlier clues support the reveal; for wholesome stories, check that earlier details "
+        "support the emotional payoff. Flashbacks and twists are optional. Rate hook, coherence, and ending "
+        "from 1 to 5. Set resolved=false if the main question remains unanswered, the protagonist has no "
+        "material effect, or the payoff relies on coincidence or a sudden rescuer. Set pass=false only for "
+        "a specific unmet requirement; name that failure and its evidence in reasons. If all scores are at "
+        "least 3, resolved=true, and the core progression is present, set pass=true. Do not reject a story "
+        "solely because its closing refers to an earlier detail rather than the opening itself. "
         f"Inputs: {inputs}. Story: {draft.script}. Summary: {draft.summary}. Return only JSON."
     )
     result = llm.structured(prompt, Evaluation)

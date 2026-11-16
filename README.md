@@ -29,7 +29,7 @@ Start the server and worker in one terminal:
 .venv/bin/story-teller serve
 ```
 
-Open `http://127.0.0.1:8765` on the same computer. Upload at least one background clip, adjust inputs, and choose **Generate video**. The app randomly selects a named theme when Theme is Random and randomly selects an uploaded clip. The finished preview, story, and one shared posting copy appear on the review side. The Runs dropdown uses the story title when one is available. You can request story or subtitle-position changes, edit posting copy, and approve the current preview. **Download approved video** returns the approved MP4; copy the title, caption, and hashtags from the page for manual posting. Story changes regenerate downstream media; position changes reuse the narration.
+Open `http://127.0.0.1:8765` on the same computer. Upload at least one background clip, adjust inputs, and choose **Generate video**. Progress appears beside the button and updates every three seconds through the queued, writing, evaluation, narration, subtitle, rendering, and posting-copy stages. The button is disabled while a video is queued or generating; the single worker processes one video at a time. Reloading the page restores the active run. The app randomly selects a named theme when Theme is Random and randomly selects an uploaded clip. The finished preview, story, and one shared posting copy appear on the review side. The Runs dropdown uses the story title when one is available. You can request story or subtitle-position changes, edit posting copy, and approve the current preview. **Download approved video** returns the approved MP4; copy the title, caption, and hashtags from the page for manual posting. Story changes regenerate downstream media; position changes reuse the narration.
 
 The default narration pace is 260 words per minute. Final duration follows the accepted script's word count, so a 90-second target may finish a few seconds early or late while preserving the chosen pace. The background video is trimmed to the final audio length.
 
@@ -75,5 +75,7 @@ This is a local, single-user app. Generation needs the computer and the selected
 .venv/bin/ruff check src tests
 .venv/bin/mypy src/story_teller
 ```
+
+Pytest uses mocked model responses and blocks Python network connections, including local Ollama and cloud APIs. Running the test suite does not require a model or make paid API calls. Actual generation through the app can use OpenAI when selected.
 
 The fixed pipeline and JSON API are described in `docs/architecture-proposal.md`; product behavior is in `docs/product-requirements.md`. The story-writing rubric is in `src/story_teller/story_prompt.txt`. `samples/` contains experimental references, not production modules. See `docs/model-benchmark.md` for measured local model performance and remaining quality checks.

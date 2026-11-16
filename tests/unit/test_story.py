@@ -39,9 +39,11 @@ def test_unresolved_central_question_fails_even_with_high_scores():
     class Evaluator:
         def structured(self, prompt, schema):
             assert "central question" in prompt
-            assert "consequential choice" in prompt
-            assert "closing line" in prompt
-            assert "planted detail" in prompt
+            assert "protagonist" in prompt
+            assert "final quarter" in prompt
+            assert "wholesome" in prompt
+            assert "mystery" in prompt
+            assert "pass=false" in prompt
             return Evaluation.model_validate({"pass": True, "hook": 5, "coherence": 5, "ending": 5, "resolved": False, "reasons": ["The culprit is never identified"]})
 
     assert not evaluate_story(draft, {}, Evaluator()).passed
@@ -51,6 +53,14 @@ def test_story_length_must_support_requested_speaking_pace():
     draft = StoryDraft(script="I found the missing file. " * 58, summary="I uncover a missing file.", narrator="female")
     with pytest.raises(ValueError, match="target is 390"):
         validate_story(draft, target_words=390, recent=[])
+
+
+def test_180_second_story_can_exceed_5000_characters():
+    narration = "I found the extraordinarily complicated missing file. " * 112
+    output = StoryOutput(title="The missing file", narration=narration, word_count=784,
+                         estimated_duration_seconds=180, continuity_note="I found the file and resolved the case.", narrator="female")
+    draft = StoryDraft(script=output.narration, summary=output.continuity_note, narrator=output.narrator)
+    validate_story(draft, target_words=780, recent=[])
 
 
 def test_story_just_below_requested_pace_is_revised():
@@ -78,19 +88,33 @@ def test_writer_uses_story_structure_and_resolved_inputs():
             assert schema is StoryOutput
             assert "390 words" in prompt
             assert "within 10%" in prompt
-            for beat in ("HOOK", "SETUP AND STAKES", "ESCALATION", "DIFFICULT CHOICE", "PAYOFF", "CLOSING LINE"):
+            for beat in ("IMMEDIATE HOOK", "NECESSARY CONTEXT", "CONNECTED SCENES AND ESCALATION", "PROTAGONIST ACTION AND SURPRISING DEVELOPMENT", "CLIMAX", "PAYOFF AND CLOSING"):
                 assert beat in prompt
             for detail in ("workplace drama", "260 words per minute", "believable, tense", "first person", "general adult audience", "English", "falsified approvals", "A stolen ledger", "avoid a secret recording", "move the reveal earlier", "ending lacks a choice"):
                 assert detail in prompt
             assert "privately" in prompt.lower()
             assert "2–4 sentences" in prompt
             assert "do not add a moral" in prompt.lower()
-            assert "continuity note" in prompt.lower()
+            assert '"continuity_note":' in prompt
+            assert "Wholesome surprise:" in prompt
+            assert "Everyday mystery:" in prompt
+            assert '"narration":' in prompt
             return StoryOutput(title="The missing approval", narration="I found a clue. " * 98, word_count=392, estimated_duration_seconds=90.5, continuity_note="I found the clue and resolved it.", narrator="female")
 
     draft = generate_story({"theme": "workplace drama", "target_duration": 90, "narration_speed": 260, "tone": "believable, tense", "perspective": "first person", "audience": "general adult audience", "language": "English", "premise": "falsified approvals", "avoid": "avoid a secret recording"}, ["A stolen ledger"], Writer(), note="move the reveal earlier", feedback="ending lacks a choice")
     assert draft.title == "The missing approval"
     assert draft.summary == "I found the clue and resolved it."
+
+
+def test_writer_preserves_blank_optional_inputs_for_template_defaults():
+    class Writer:
+        def structured(self, prompt, schema):
+            assert "Tone: \n" in prompt
+            assert "Optional premise: \n" in prompt
+            return StoryOutput(title="A family promise", narration="I kept the promise. " * 100, word_count=400,
+                               estimated_duration_seconds=92, continuity_note="I kept a promise to my family.", narrator="female")
+
+    generate_story({"target_duration": 90, "narration_speed": 260, "tone": "", "premise": ""}, [], Writer())
 
 
 def test_story_word_count_uses_spoken_words_not_apostrophe_fragments():

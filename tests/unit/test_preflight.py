@@ -2,8 +2,15 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
+import pytest
 
 from story_teller.app import check_environment
+
+
+@pytest.fixture(autouse=True)
+def offline_ollama():
+    with patch("story_teller.app.httpx.get", side_effect=httpx.ConnectError("offline test")):
+        yield
 
 
 def test_missing_ollama_is_reported():
