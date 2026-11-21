@@ -26,10 +26,14 @@
           <label>Writing model <select name="writing_model"><option value="ollama/gemma4:12b">gemma4:12b · Ollama</option></select></label>
           <label>Evaluation model <select name="evaluation_model"><option value="ollama/gemma4:12b">gemma4:12b · Ollama</option></select></label>
           <label>Posting copy model <select name="posting_model"><option value="ollama/qwen3:4b-instruct">qwen3:4b-instruct · Ollama</option></select></label>
+          <label>Background video from library <select id="library-clip" disabled><option value="">Loading background videos…</option></select></label>
+          <label>Video for this story (optional) <input type="file" id="run-clip" accept="video/*"></label>
           <div class="actions"><button type="button" id="save">Save defaults</button><button type="button" class="primary" id="generate">Generate video</button></div>
           <p id="generation-progress" role="status" aria-live="polite">No video generation in progress.</p>
         </form>
         <h2>Background clips</h2>
+        <p>Copy videos into this project's <code>background_videos/</code> folder, or upload one here. A run without a selected video picks randomly from this library.</p>
+        <button type="button" id="refresh-clips">Refresh videos</button>
         <label class="upload">Upload clip <input type="file" id="clip" accept="video/*"></label>
         <ul id="clips"></ul>
       </section>

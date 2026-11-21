@@ -1,4 +1,5 @@
 import fcntl
+import os
 import sqlite3
 import time
 from collections.abc import Callable
@@ -61,7 +62,7 @@ def worker_loop(root: Path) -> None:
         with connect(root) as conn:
             recover_interrupted(conn)
         try:
-            while True:
+            while os.getppid() != 1:
                 with connect(root) as conn:
                     worked = process_next_run(conn, root)
                 if not worked:

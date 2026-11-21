@@ -40,9 +40,14 @@ async function models() {
 }
 async function clips() {
   const items = await request('/clips');
+  const chosen = $('#library-clip').value;
+  $('#library-clip').replaceChildren(new Option('Random from library', ''), ...items.map(item =>
+    new Option(`${item.name} · ${item.duration.toFixed(1)}s`, item.id)));
+  $('#library-clip').value = items.some(item => item.id === chosen) ? chosen : '';
+  $('#library-clip').disabled = false;
   $('#clips').replaceChildren(...items.map(item => {
     const li = document.createElement('li');
-    li.textContent = `${item.width}×${item.height}, ${item.duration.toFixed(1)}s `;
+    li.textContent = `${item.name} · ${item.width}×${item.height}, ${item.duration.toFixed(1)}s `;
     const remove = document.createElement('button'); remove.textContent = 'Remove';
     remove.onclick = () => act(async () => { await request(`/clips/${item.id}`, {method:'DELETE'}); await clips(); });
     li.append(remove); return li;
@@ -108,7 +113,15 @@ $('#generate').onclick = async () => {
   $('#generate').disabled = true;
   $('#generation-progress').textContent = 'Submitting video generation…';
   try {
-    const run = await request('/runs', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({overrides:payload()})});
+    let clipId = $('#library-clip').value || null;
+    const file = $('#run-clip').files[0];
+    if (file) {
+      const form = new FormData(); form.append('file', file);
+      clipId = (await request('/clips', {method:'POST', body:form})).id;
+      await clips();
+    }
+    const run = await request('/runs', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({overrides:payload(),clip_id:clipId})});
+    $('#run-clip').value = '';
     currentRun = run.id; currentRevision = null; shownVideo = ''; shownStatus = null;
     await refresh();
     notice('Video queued.');
@@ -116,6 +129,10 @@ $('#generate').onclick = async () => {
   finally { submitting = false; await runs().catch(error => notice(error.message)); }
 };
 $('#clip').onchange = () => act(async () => { const file = $('#clip').files[0]; if (!file) return; const form = new FormData(); form.append('file',file); await request('/clips',{method:'POST',body:form}); await clips(); });
+$('#refresh-clips').onclick = () => act(clips);
+window.addEventListener('focus', () => clips().catch(error => notice(error.message)));
+$('#library-clip').onchange = () => { if ($('#library-clip').value) $('#run-clip').value = ''; };
+$('#run-clip').onchange = () => { if ($('#run-clip').files.length) $('#library-clip').value = ''; };
 $('#runs').onchange = () => { currentRun = $('#runs').value; currentRevision = null; shownVideo = ''; shownStatus = null; act(refresh); };
 async function revise(kind, note) { await request(`/runs/${currentRun}/revisions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,note})}); currentRevision = null; shownVideo = ''; shownStatus = null; await refresh(); }
 $('#revise-story').onclick = () => act(() => revise('story',$('#story-note').value));

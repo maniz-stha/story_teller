@@ -10,3 +10,5 @@ __pycache__/
 *.swp
 samples/*.mp3
 samples/*.mp4
+background_videos/*
+!background_videos/.gitkeep

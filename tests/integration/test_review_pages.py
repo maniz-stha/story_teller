@@ -20,7 +20,7 @@ const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('P
 const elements = new Map();
 function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'',value:'',replaceChildren(){},querySelectorAll(){return []}}); return elements.get(id); }
 let status = 'queued';
-const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},setInterval(){},fetch:async url=>({ok:true,status:200,json:async()=>url.endsWith('/revisions/1') ? {story:status==='failed'?'I found a secret':null,summary:'A clue was resolved.',model_info:{story_title:'The clue',word_count:390,estimated_duration_seconds:90},evaluation:status==='failed'?{reasons:['Too short']}:null,posting_copy:null} : url.endsWith('/runs/r') ? {status,revisions:[{number:1}],error:status==='failed'?'evaluating failed':null,approved_revision_id:null} : []})});
+const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},window:{addEventListener(){}},setInterval(){},fetch:async url=>({ok:true,status:200,json:async()=>url.endsWith('/revisions/1') ? {story:status==='failed'?'I found a secret':null,summary:'A clue was resolved.',model_info:{story_title:'The clue',word_count:390,estimated_duration_seconds:90},evaluation:status==='failed'?{reasons:['Too short']}:null,posting_copy:null} : url.endsWith('/runs/r') ? {status,revisions:[{number:1}],error:status==='failed'?'evaluating failed':null,approved_revision_id:null} : []})});
 vm.runInContext(source,context); vm.runInContext("currentRun='r'",context);
 (async()=>{await vm.runInContext('refresh()',context); status='failed'; await vm.runInContext('refresh()',context); assert.equal(element('#story').textContent,'I found a secret'); assert.equal(element('#story-title').textContent,'The clue'); assert.match(element('#story-meta').textContent,/390 words/); assert.equal(element('#continuity-note').textContent,'A clue was resolved.'); assert.match(element('#evaluation').textContent,/Too short/);})().catch(error=>{console.error(error);process.exitCode=1});
 """
@@ -40,7 +40,7 @@ def test_runs_dropdown_uses_story_title_with_theme_fallback():
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
 const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
 const select = {value:'',replaceChildren(...options){this.options=options}};
-const context = vm.createContext({document:{querySelector:selector=>selector==='#runs'?select:{}},Option:function(label,value){return {label,value}},setInterval(){},fetch:async()=>({ok:true,status:200,json:async()=>[{id:'123456789',title:'My manager took my idea',theme:'workplace drama',status:'approved'},{id:'abcdefghi',title:null,theme:'family conflict',status:'queued'}]})});
+const context = vm.createContext({document:{querySelector:selector=>selector==='#runs'?select:{}},Option:function(label,value){return {label,value}},window:{addEventListener(){}},setInterval(){},fetch:async()=>({ok:true,status:200,json:async()=>[{id:'123456789',title:'My manager took my idea',theme:'workplace drama',status:'approved'},{id:'abcdefghi',title:null,theme:'family conflict',status:'queued'}]})});
 vm.runInContext(source,context);
 (async()=>{await vm.runInContext('runs()',context); assert.match(select.options[1].label,/My manager took my idea/); assert.match(select.options[2].label,/family conflict/);})().catch(error=>{console.error(error);process.exitCode=1});
 """
@@ -58,7 +58,7 @@ const elements = new Map();
 function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'',value:'',disabled:false,replaceChildren(...options){this.options=options}}); return elements.get(id); }
 let status = 'queued';
 let posts = 0;
-const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},setInterval(){},fetch:async (url,options={})=>{if(options.method==='POST') posts++; return {ok:true,status:200,json:async()=>url.endsWith('/runs') ? [{id:'run123456',title:'The cake',theme:'family conflict',status}] : {status,revisions:[{number:1}],error:null,approved_revision_id:null}}}});
+const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},window:{addEventListener(){}},setInterval(){},fetch:async (url,options={})=>{if(options.method==='POST') posts++; return {ok:true,status:200,json:async()=>url.endsWith('/runs') ? [{id:'run123456',title:'The cake',theme:'family conflict',status}] : {status,revisions:[{number:1}],error:null,approved_revision_id:null}}}});
 vm.runInContext(source,context);
 (async()=>{
   await vm.runInContext('runs()',context);
@@ -86,7 +86,7 @@ const fs = require('fs'); const vm = require('vm'); const assert = require('asse
 const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
 const selects = new Map();
 function select(name) { if (!selects.has(name)) selects.set(name,{replaceChildren(...options){this.options=options}}); return selects.get(name); }
-const context = vm.createContext({document:{querySelector:select},Option:function(label,value){return {label,value}},setInterval(){},fetch:async()=>({ok:true,status:200,json:async()=>[{id:'ollama/gemma4:12b',provider:'ollama',model:'gemma4:12b'},{id:'openai/gpt-6-luna',provider:'openai',model:'gpt-6-luna'}]})});
+const context = vm.createContext({document:{querySelector:select},Option:function(label,value){return {label,value}},window:{addEventListener(){}},setInterval(){},fetch:async()=>({ok:true,status:200,json:async()=>[{id:'ollama/gemma4:12b',provider:'ollama',model:'gemma4:12b'},{id:'openai/gpt-6-luna',provider:'openai',model:'gpt-6-luna'}]})});
 vm.runInContext(source,context);
 (async()=>{await vm.runInContext('models()',context); for(const name of ['writing_model','evaluation_model','posting_model']) { const options=select(`#settings [name="${name}"]`).options; assert.equal(options[1].value,'openai/gpt-6-luna'); assert.match(options[1].label,/OpenAI/); }})().catch(error=>{console.error(error);process.exitCode=1});
 """
@@ -103,7 +103,7 @@ const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('P
 const elements = new Map();
 function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'old',value:'',src:'old',href:'old',disabled:false,replaceChildren(){this.cleared=true},removeAttribute(key){this[key]=''},load(){},querySelectorAll(){return []}}); return elements.get(id); }
 let confirmed = false; let deletes = 0;
-const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},confirm:()=>confirmed,setInterval(){},fetch:async (url,options={})=>{if(options.method==='DELETE') deletes++; return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>[]}}});
+const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},confirm:()=>confirmed,window:{addEventListener(){}},setInterval(){},fetch:async (url,options={})=>{if(options.method==='DELETE') deletes++; return {ok:true,status:options.method==='DELETE'?204:200,json:async()=>[]}}});
 vm.runInContext(source,context); vm.runInContext("currentRun='abc'",context);
 (async()=>{await element('#delete-run').onclick(); assert.equal(deletes,0); confirmed=true; await element('#delete-run').onclick(); assert.equal(deletes,1); assert.equal(vm.runInContext('currentRun',context),null); assert.equal(element('#video').src,''); assert.equal(element('#story').textContent,''); assert.equal(element('#runs').value,'');})().catch(error=>{console.error(error);process.exitCode=1});
 """

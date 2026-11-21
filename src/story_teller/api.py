@@ -19,12 +19,14 @@ from .service import (
     get_settings,
     request_revision,
     save_settings,
+    sync_clips,
 )
 from .storage import resolve_artifact
 
 
 class RunRequest(BaseModel):
     overrides: dict[str, object] = Field(default_factory=dict)
+    clip_id: str | None = None
 
 
 class RevisionRequest(BaseModel):
@@ -58,7 +60,11 @@ def router(root: Path) -> APIRouter:
     @api.get("/clips")
     def list_clips() -> list[dict[str, object]]:
         with connect(root) as conn:
-            return [dict(row) for row in conn.execute("SELECT id,duration,width,height,created_at FROM clips WHERE active=1 ORDER BY created_at DESC")]
+            sync_clips(conn, root)
+            items = [dict(row) for row in conn.execute("SELECT id,path,duration,width,height,created_at FROM clips WHERE active=1 ORDER BY created_at DESC")]
+            for item in items:
+                item["name"] = Path(str(item.pop("path"))).name
+            return items
 
     @api.post("/clips", status_code=201)
     async def upload_clip(file: UploadFile) -> dict[str, object]:
@@ -88,7 +94,8 @@ def router(root: Path) -> APIRouter:
     def start_run(request: RunRequest) -> dict[str, str]:
         with connect(root) as conn:
             try:
-                run_id = create_run(conn, request.overrides, secrets.randbits(31))
+                sync_clips(conn, root)
+                run_id = create_run(conn, request.overrides, secrets.randbits(31), request.clip_id)
             except (ValueError, ValidationError) as exc:
                 raise HTTPException(422, detail={"code": "invalid_run", "message": str(exc)}) from exc
         return {"id": run_id, "status": "queued"}
