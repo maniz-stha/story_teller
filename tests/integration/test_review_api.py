@@ -71,7 +71,7 @@ def test_copy_edit_claims_write_lock_before_reading_approval_state(tmp_path: Pat
         return conn
 
     monkeypatch.setattr("story_teller.api.connect", traced_connect)
-    copy = {"title": "A short title", "caption": "A short caption", "hashtags": ["#story"]}
+    copy = {"title": "A short title", "caption": "A short caption. What would you do?", "hashtags": ["#story"], "pinned_comment": "Would you keep the secret?"}
     assert client.put(f"/api/v1/runs/{run_id}/revisions/1/posting-copy", json=copy).status_code == 200
     assert client.get(f"/api/v1/runs/{run_id}/revisions/1").json()["posting_copy"] == copy
     first_read = next(i for i, sql in enumerate(statements) if "SELECT r.status" in sql)

@@ -72,10 +72,10 @@ async function runs() {
 }
 function copyEditor(value) {
   const section = document.createElement('div'); section.className = 'copy-card';
-  for (const key of ['title','caption','hashtags']) {
-    const label = document.createElement('label'); label.textContent = key;
-    const input = document.createElement(key === 'caption' ? 'textarea' : 'input'); input.dataset.field = key;
-    input.value = key === 'hashtags' ? value[key].join(' ') : value[key]; label.append(input); section.append(label);
+  for (const key of ['title','caption','hashtags','pinned_comment']) {
+    const label = document.createElement('label'); label.textContent = key.replace('_', ' ');
+    const input = document.createElement(key === 'caption' || key === 'pinned_comment' ? 'textarea' : 'input'); input.dataset.field = key;
+    input.value = key === 'hashtags' ? value[key].join(' ') : value[key] || ''; label.append(input); section.append(label);
   }
   return section;
 }
@@ -154,6 +154,6 @@ $('#delete-run').onclick = () => {
     await runs();
   });
 };
-$('#save-copy').onclick = () => act(async () => { const section = $('.copy-card'); const field = key => section.querySelector(`[data-field="${key}"]`).value; const copy = {title:field('title'),caption:field('caption'),hashtags:field('hashtags').split(/\s+/).filter(Boolean)}; await request(`/runs/${currentRun}/revisions/${currentRevision}/posting-copy`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(copy)}); });
+$('#save-copy').onclick = () => act(async () => { const section = $('.copy-card'); const field = key => section.querySelector(`[data-field="${key}"]`).value; const copy = {title:field('title'),caption:field('caption'),hashtags:field('hashtags').split(/\s+/).filter(Boolean),pinned_comment:field('pinned_comment')}; await request(`/runs/${currentRun}/revisions/${currentRevision}/posting-copy`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(copy)}); });
 Promise.all([request('/settings'),models(),clips()]).then(async ([settings]) => { loadSettings(settings); await refresh(); }).catch(error => notice(error.message));
 setInterval(() => refresh().catch(error => notice(error.message)),3000);
