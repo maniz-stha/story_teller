@@ -8,7 +8,7 @@
 </head>
 <body>
   <main>
-    <header><p class="eyebrow">LOCAL VIDEO STUDIO</p><h1>Story Teller</h1><p>Generate a narrated story, review the preview, then export it for manual posting.</p></header>
+    <header><p class="eyebrow">LOCAL VIDEO STUDIO</p><h1>Story Teller</h1><p>Review the story before narration, then review the video before downloading it for manual posting.</p></header>
     <div id="notice" role="status" aria-live="polite"></div>
     <div class="grid">
       <section class="card">
@@ -26,10 +26,14 @@
           <label>Writing model <select name="writing_model"><option value="ollama/gemma4:12b">gemma4:12b · Ollama</option></select></label>
           <label>Evaluation model <select name="evaluation_model"><option value="ollama/gemma4:12b">gemma4:12b · Ollama</option></select></label>
           <label>Posting copy model <select name="posting_model"><option value="ollama/qwen3:4b-instruct">qwen3:4b-instruct · Ollama</option></select></label>
+          <label>Background video from library <select id="library-clip" disabled><option value="">Loading background videos…</option></select></label>
+          <label>Video for this story (optional) <input type="file" id="run-clip" accept="video/*"></label>
           <div class="actions"><button type="button" id="save">Save defaults</button><button type="button" class="primary" id="generate">Generate video</button></div>
           <p id="generation-progress" role="status" aria-live="polite">No video generation in progress.</p>
         </form>
         <h2>Background clips</h2>
+        <p>Copy videos into this project's <code>background_videos/</code> folder, or upload one here. A run without a selected video picks randomly from this library.</p>
+        <button type="button" id="refresh-clips">Refresh videos</button>
         <label class="upload">Upload clip <input type="file" id="clip" accept="video/*"></label>
         <ul id="clips"></ul>
       </section>
@@ -40,9 +44,10 @@
         <div class="preview"><video id="video" controls playsinline preload="metadata"></video></div>
         <h3>Story</h3><h4 id="story-title"></h4><p id="story-meta"></p><p id="story" class="story"></p><p><strong>Continuity note:</strong> <span id="continuity-note"></span></p><p id="evaluation" class="story"></p>
         <label>Story feedback <textarea id="story-note" rows="2" placeholder="Describe what to change"></textarea></label><button type="button" id="revise-story">Revise story</button>
+        <div class="actions"><button type="button" class="primary" id="approve-story" disabled>Approve story and create video</button></div>
         <label>Subtitle position <textarea id="position-note" rows="2" placeholder="Move captions higher, middle, or lower"></textarea></label><button type="button" id="revise-position">Change position</button>
-        <h3>Posting copy</h3><div id="copy"></div><button type="button" id="save-copy">Save copy edits</button>
-        <div class="actions"><button type="button" class="primary" id="approve">Approve</button><a id="download" href="#" download>Download approved video</a></div>
+        <h3>Posting copy</h3><p>Edit the caption and pinned comment, then copy the comment when you post the video.</p><div id="copy"></div><button type="button" id="save-copy">Save copy edits</button>
+        <div class="actions"><button type="button" class="primary" id="approve">Approve video</button><a id="download" href="#" download>Download approved video</a></div>
       </section>
     </div>
   </main>

@@ -27,6 +27,25 @@ def test_run_revision_approval_and_download_contract(tmp_path: Path):
     assert client.post(f"/api/v1/runs/{run_id}/approve", json={"revision_no": 1}).status_code == 409
 
 
+def test_story_approval_starts_media_only_for_current_passing_story(tmp_path: Path):
+    with connect(tmp_path) as conn:
+        conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES('c','clips/c/source.mp4','sha',10,320,240)")
+        conn.commit()
+    client = TestClient(create_app(tmp_path))
+    run_id = client.post("/api/v1/runs", json={}).json()["id"]
+    with connect(tmp_path) as conn:
+        rev = conn.execute("SELECT current_revision_id FROM runs WHERE id=?", (run_id,)).fetchone()[0]
+        conn.execute("UPDATE revisions SET story='I found it',evaluation_json=? WHERE id=?", ('{"pass":true}', rev))
+        conn.execute("UPDATE runs SET status='awaiting_story_approval' WHERE id=?", (run_id,))
+        conn.commit()
+    assert client.get(f"/api/v1/runs/{run_id}/video?download=true").status_code == 404
+    assert client.post(f"/api/v1/runs/{run_id}/approve", json={"revision_no": 1}).status_code == 409
+    response = client.post(f"/api/v1/runs/{run_id}/approve-story", json={"revision_no": 1})
+    assert response.status_code == 202
+    assert client.get(f"/api/v1/runs/{run_id}").json()["status"] == "queued"
+    assert client.post(f"/api/v1/runs/{run_id}/approve-story", json={"revision_no": 1}).status_code == 409
+
+
 def test_approved_video_download_and_shared_copy_validation(tmp_path: Path):
     with connect(tmp_path) as conn:
         conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES('c','clips/c/source.mp4','sha',10,320,240)")
@@ -51,6 +70,8 @@ def test_approved_video_download_and_shared_copy_validation(tmp_path: Path):
         conn.commit()
     titled_download = client.get(f"/api/v1/runs/{run_id}/video?download=true")
     assert titled_download.headers["content-disposition"] == "attachment; filename*=utf-8''The%20Clinic-%20Wrong-Number.mp4"
+    assert client.post(f"/api/v1/runs/{run_id}/revisions", json={"kind": "story", "note": "Change the ending"}).status_code == 202
+    assert client.get(f"/api/v1/runs/{run_id}/video?download=true").content == b"preview"
 
 
 def test_copy_edit_claims_write_lock_before_reading_approval_state(tmp_path: Path, monkeypatch):
@@ -71,7 +92,7 @@ def test_copy_edit_claims_write_lock_before_reading_approval_state(tmp_path: Pat
         return conn
 
     monkeypatch.setattr("story_teller.api.connect", traced_connect)
-    copy = {"title": "A short title", "caption": "A short caption", "hashtags": ["#story"]}
+    copy = {"title": "A short title", "caption": "A short caption. What would you do?", "hashtags": ["#story"], "pinned_comment": "Would you keep the secret?"}
     assert client.put(f"/api/v1/runs/{run_id}/revisions/1/posting-copy", json=copy).status_code == 200
     assert client.get(f"/api/v1/runs/{run_id}/revisions/1").json()["posting_copy"] == copy
     first_read = next(i for i, sql in enumerate(statements) if "SELECT r.status" in sql)

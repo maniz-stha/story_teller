@@ -1,6 +1,6 @@
 # Story Teller
 
-Story Teller creates first-person English story videos on one computer. It writes and evaluates stories with selected Ollama or OpenAI models, synthesizes narration with Chatterbox, times captions with faster-whisper, and renders a portrait MP4 with FFmpeg. You review each preview and manually post the approved video and copy. Automatic publishing and scheduled generation are future work.
+Story Teller creates first-person English story videos on one computer. It writes and evaluates stories with selected Ollama or OpenAI models, pauses for your story approval, then synthesizes narration with Chatterbox, times captions with faster-whisper, and renders a portrait MP4 with FFmpeg. You approve the finished preview before downloading it for manual posting. Automatic publishing and scheduled generation are future work.
 
 ## Setup
 
@@ -29,7 +29,7 @@ Start the server and worker in one terminal:
 .venv/bin/story-teller serve
 ```
 
-Open `http://127.0.0.1:8765` on the same computer. Upload at least one background clip, adjust inputs, and choose **Generate video**. Progress appears beside the button and updates every three seconds through the queued, writing, evaluation, narration, subtitle, rendering, and posting-copy stages. The button is disabled while a video is queued or generating; the single worker processes one video at a time. Reloading the page restores the active run. The app randomly selects a named theme when Theme is Random and randomly selects an uploaded clip. The finished preview, story, and one shared posting copy appear on the review side. The Runs dropdown uses the story title when one is available. You can request story or subtitle-position changes, edit posting copy, and approve the current preview. **Download approved video** returns the approved MP4; copy the title, caption, and hashtags from the page for manual posting. Story changes regenerate downstream media; position changes reuse the narration.
+Open `http://127.0.0.1:8765` on the same computer. Copy background videos to `/Volumes/projects/my_projects/story_teller/background_videos/`, or upload them under **Background clips**. The folder is ignored by Git. The app discovers copied MP4, MOV, MKV, and WebM files when listing clips or starting a run. The first scan validates and copies each video into app storage and can take time for large files; the selector shows a loading message until it finishes. If you copy files while the page is open, return to the browser or choose **Refresh videos**. Adjust inputs and choose **Generate video**. You can select an existing **Background video from library**, or choose **Video for this story** to upload and use a new video for this run; the new upload is also copied into `background_videos/` for later selection. Leaving both blank randomly chooses from the clip library. Progress updates every three seconds. After evaluation, read the story in **Review** and choose **Approve story and create video**, or request a story revision. Narration, subtitles, rendering, and posting copy start only after story approval. Review the finished preview and copy, then choose **Approve video** to enable **Download approved video**. Story revisions require story approval again; subtitle-position changes reuse the narration and return to video review. The Runs dropdown uses the story title when one is available. The CLI uses the same run states; open the local review page for both approvals.
 
 The default narration pace is 260 words per minute. Final duration follows the accepted script's word count, so a 90-second target may finish a few seconds early or late while preserving the chosen pace. The background video is trimmed to the final audio length.
 
@@ -50,6 +50,8 @@ Stop the server with Ctrl+C. Only one server/worker pair can use a data folder a
 
 Stop Story Teller before copying its data so the SQLite database and media files form a consistent snapshot. Back up the **entire** data folder, including `story_teller.sqlite3`, `clips/`, `voices/`, and `runs/`:
 
+Back up the project's `background_videos/` folder separately if you want to preserve the copy-in library. The data folder retains managed copies for existing runs.
+
 ```sh
 ditto "$HOME/Library/Application Support/StoryTeller" "$HOME/Desktop/StoryTeller-backup"
 ```
@@ -66,7 +68,7 @@ Check the run list and an approved download before removing the moved folder or 
 
 ## Known limits
 
-This is a local, single-user app. Generation needs the computer and the selected model provider available; the first speech run may download weights. Story evaluation is a quality filter, not a prediction of views. Final video duration follows measured narration and can vary from the requested target. Voice naturalness and platform overlay placement should be checked in each preview before manual posting. The supplied voice references and uploaded footage need appropriate usage rights. There is no automatic publishing or scheduled run in this phase.
+This is a local, single-user app. Generation needs the computer and the selected model provider available; the first speech run may download weights. If Apple MPS runs out of memory during narration, the app retries narration once on CPU, which can be much slower. Story evaluation is a quality filter, not a prediction of views. Final video duration follows measured narration and can vary from the requested target. Voice naturalness and platform overlay placement should be checked in each preview before manual posting. The supplied voice references and uploaded footage need appropriate usage rights. There is no automatic publishing or scheduled run in this phase.
 
 ## Development
 

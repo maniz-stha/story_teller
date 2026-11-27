@@ -40,7 +40,7 @@ def test_unresolved_central_question_fails_even_with_high_scores():
         def structured(self, prompt, schema):
             assert "central question" in prompt
             assert "protagonist" in prompt
-            assert "final quarter" in prompt
+            assert "decisive climax" in prompt
             assert "wholesome" in prompt
             assert "mystery" in prompt
             assert "pass=false" in prompt
@@ -88,13 +88,15 @@ def test_writer_uses_story_structure_and_resolved_inputs():
             assert schema is StoryOutput
             assert "390 words" in prompt
             assert "within 10%" in prompt
-            for beat in ("IMMEDIATE HOOK", "NECESSARY CONTEXT", "CONNECTED SCENES AND ESCALATION", "PROTAGONIST ACTION AND SURPRISING DEVELOPMENT", "CLIMAX", "PAYOFF AND CLOSING"):
+            for beat in ("IMMEDIATE HOOK", "CONNECTED SCENES AND ESCALATION", "PROTAGONIST ACTION AND SURPRISING DEVELOPMENT", "PAYOFF AND CLOSING"):
                 assert beat in prompt
             for detail in ("workplace drama", "260 words per minute", "believable, tense", "first person", "general adult audience", "English", "falsified approvals", "A stolen ledger", "avoid a secret recording", "move the reveal earlier", "ending lacks a choice"):
                 assert detail in prompt
             assert "privately" in prompt.lower()
             assert "2–4 sentences" in prompt
             assert "do not add a moral" in prompt.lower()
+            assert "Vary the opening" in prompt
+            assert "form of uncertainty" in prompt
             assert '"continuity_note":' in prompt
             assert "Wholesome surprise:" in prompt
             assert "Everyday mystery:" in prompt
@@ -115,6 +117,18 @@ def test_writer_preserves_blank_optional_inputs_for_template_defaults():
                                estimated_duration_seconds=92, continuity_note="I kept a promise to my family.", narrator="female")
 
     generate_story({"target_duration": 90, "narration_speed": 260, "tone": "", "premise": ""}, [], Writer())
+
+
+def test_evaluator_checks_developing_curiosity_without_rigid_beats():
+    draft = StoryDraft(script="I found a secret. " * 50, summary="A secret changes my job.", narrator="female")
+
+    class Evaluator:
+        def structured(self, prompt, schema):
+            assert "curiosity" in prompt
+            assert "identical beats" in prompt
+            return Evaluation.model_validate({"pass": True, "hook": 4, "coherence": 4, "ending": 4, "resolved": True, "reasons": []})
+
+    assert evaluate_story(draft, {}, Evaluator()).passed
 
 
 def test_story_word_count_uses_spoken_words_not_apostrophe_fragments():

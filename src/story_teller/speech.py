@@ -1,4 +1,6 @@
+import gc
 import hashlib
+import logging
 import re
 import shutil
 import subprocess
@@ -52,11 +54,26 @@ def adjust_duration(source: Path, output: Path, target_seconds: float) -> None:
 
 
 def synthesize(story: StoryDraft, voice_ref: Path, output: Path, target_seconds: float) -> AudioInfo:
+    import torch
+
+    device = "mps" if torch.backends.mps.is_available() else "cpu"
+    if device == "mps":
+        try:
+            return _synthesize_on_device(story, voice_ref, output, target_seconds, device)
+        except RuntimeError as exc:
+            if "MPS backend out of memory" not in str(exc):
+                raise
+        logging.getLogger(__name__).warning("MPS ran out of memory; retrying narration on CPU")
+        gc.collect()
+        torch.mps.empty_cache()
+    return _synthesize_on_device(story, voice_ref, output, target_seconds, "cpu")
+
+
+def _synthesize_on_device(story: StoryDraft, voice_ref: Path, output: Path, target_seconds: float, device: str) -> AudioInfo:
     import soundfile as sf
     import torch
     from chatterbox.tts import ChatterboxTTS
 
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
     model = ChatterboxTTS.from_pretrained(device=device)
     model.prepare_conditionals(str(voice_ref), exaggeration=0.8)
     sentences = re.split(r"(?<=[.!?])\s+", story.script.strip())

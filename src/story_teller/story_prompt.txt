@@ -51,6 +51,8 @@ Before drafting, establish:
 - Which earlier detail will matter at the climax.
 - What concrete result makes the ending satisfying.
 
+Choose the form of uncertainty that fits this story: a difficult choice, a clue that changes meaning, a relationship under strain, or a plan whose cost becomes clear. Let each important development change what the listener expects. Vary the opening, turning point, and resolution from the recent stories; do not reuse a familiar setup merely with new names.
+
 Output only the selected story in the required JSON format. Do not reveal brainstorming, outlines, or internal evaluation.
 
 THEME ADAPTATION
@@ -82,7 +84,7 @@ Other:
 Infer the appropriate genre from the premise and tone. Choose a source of tension and emotional destination that fit. Preserve clear stakes, connected events, protagonist agency, and a satisfying resolution.
 
 STORY PROGRESSION
-Use the following progression naturally. Do not label the beats or follow rigid percentages.
+Use the following as tools, not a fixed sequence or checklist. Omit a beat when it adds nothing. Keep the central question alive until the story earns its answer.
 
 1. IMMEDIATE HOOK
 Begin with one or two short sentences that place the protagonist inside a specific conflict, accusation, discovery, unfair demand, surprising action, or difficult choice.
@@ -102,7 +104,7 @@ Provide only the background needed to understand the conflict and stakes. Show w
 Include a specific, relevant detail that makes the situation feel lived-in. When establishing a sacrifice, show something concrete the protagonist gave up rather than merely saying they worked hard or suffered.
 
 3. CONNECTED SCENES AND ESCALATION
-For stories of approximately 2–3 minutes, aim for 4–6 substantial scenes. Use fewer for shorter stories and more only when the length supports them.
+Use only as many substantial scenes as the story needs. Each must change the situation.
 
 Each scene must change the situation through at least one of:
 - A consequential event.
@@ -121,7 +123,7 @@ For confrontational drama, the first reasonable attempt to solve the problem sho
 For wholesome stories and mysteries, escalation can deepen emotional significance or uncertainty instead of increasing hostility.
 
 4. SELECTIVE FLASHBACKS
-Use one or two brief past events when they improve the story. Each must:
+Use a brief past event only when it improves the story. It must:
 - Explain a relevant relationship or vulnerability.
 - Establish a meaningful sacrifice or promise.
 - Plant a skill, resource, clue, obligation, or detail that matters later.
@@ -140,7 +142,7 @@ In wholesome stories, let a choice, gesture, or act of attention help make the e
 Preserve uncertainty about whether the action will work. Do not create suspense by hiding information the narrator would naturally explain.
 
 6. CLIMAX
-Place the decisive action and its immediate consequence in the final quarter of the narration. Do not resolve the main conflict halfway through and spend the rest summarizing the aftermath.
+Place the decisive action late enough that earlier developments matter. Do not resolve the main conflict halfway through and spend the rest summarizing the aftermath.
 
 Bring the central question to a clear answer.
 
@@ -212,7 +214,7 @@ Before answering, silently check and revise:
 - Does resistance persist long enough to sustain the story?
 - Does the protagonist meaningfully influence the outcome?
 - Is the surprising development supported by earlier details?
-- Does the climax happen late enough?
+- Does the climax follow meaningful developments rather than a fixed beat schedule?
 - Does the ending deliver the appropriate emotional reward?
 - Are consequences believable and connected to the wrongdoing?
 - Is the narration natural when spoken aloud?

@@ -19,6 +19,7 @@ MODELS = {
     "ollama": ("qwen3:4b-instruct", "gemma4:12b"),
     "openai": ("gpt-6-luna", "gpt-6.1-terra"),
 }
+BACKGROUND_DIR = Path(__file__).resolve().parents[2] / "background_videos"
 
 
 def selected_model(value: str) -> tuple[str, str]:
@@ -86,10 +87,12 @@ TONE_BY_THEME = {
 }
 
 
-def create_run(conn: sqlite3.Connection, overrides: dict[str, object], seed: int) -> str:
+def create_run(conn: sqlite3.Connection, overrides: dict[str, object], seed: int, clip_id: str | None = None) -> str:
     settings = Settings.model_validate({**get_settings(conn).model_dump(), **overrides})
     rng = random.Random(seed)
     clips = [row[0] for row in conn.execute("SELECT id FROM clips WHERE active=1 ORDER BY id")]
+    if clip_id is not None and clip_id not in clips:
+        raise ValueError("Selected clip is unavailable")
     if not clips:
         raise ValueError("At least one uploaded clip is required")
     theme = rng.choice(THEMES) if settings.theme == "random" else settings.theme
@@ -98,7 +101,7 @@ def create_run(conn: sqlite3.Connection, overrides: dict[str, object], seed: int
     resolved["tone"] = settings.tone or TONE_BY_THEME.get(theme, "believable, emotionally engaging")
     run_id = uuid.uuid4().hex
     revision_id = uuid.uuid4().hex
-    conn.execute("INSERT INTO runs(id,status,inputs_json,seed,theme,clip_id,current_revision_id) VALUES(?,?,?,?,?,?,?)", (run_id, "queued", json.dumps(resolved), seed, resolved["theme"], rng.choice(clips), revision_id))
+    conn.execute("INSERT INTO runs(id,status,inputs_json,seed,theme,clip_id,current_revision_id) VALUES(?,?,?,?,?,?,?)", (run_id, "queued", json.dumps(resolved), seed, resolved["theme"], clip_id or rng.choice(clips), revision_id))
     conn.execute("INSERT INTO revisions(id,run_id,number) VALUES(?,?,1)", (revision_id, run_id))
     conn.commit()
     return run_id
@@ -121,8 +124,10 @@ def request_revision(conn: sqlite3.Connection, run_id: str, kind: str, note: str
     conn.execute("BEGIN IMMEDIATE")
     try:
         run = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
-        if not run or run["status"] not in ("awaiting_review", "approved"):
+        if not run or run["status"] not in ("awaiting_story_approval", "awaiting_review", "approved"):
             raise ValueError("Run is not ready for revision")
+        if kind == "subtitle_position" and run["status"] == "awaiting_story_approval":
+            raise ValueError("No video exists to reposition")
         parent = conn.execute("SELECT * FROM revisions WHERE id=?", (run["current_revision_id"],)).fetchone()
         number = parent["number"] + 1
         new_id = uuid.uuid4().hex
@@ -155,6 +160,23 @@ def approve_revision(conn: sqlite3.Connection, run_id: str, revision_no: int) ->
         raise
 
 
+def approve_story(conn: sqlite3.Connection, run_id: str, revision_no: int) -> None:
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        run = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+        revision = conn.execute("SELECT * FROM revisions WHERE run_id=? AND number=?", (run_id, revision_no)).fetchone()
+        if (not run or not revision or run["status"] != "awaiting_story_approval"
+                or run["current_revision_id"] != revision["id"] or not revision["story"]
+                or not revision["evaluation_json"] or not json.loads(revision["evaluation_json"]).get("pass")
+                or revision["audio_path"] or revision["video_path"]):
+            raise ValueError("Only the latest evaluated story can be approved")
+        conn.execute("UPDATE runs SET status='queued',story_approved_revision_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (revision["id"], run_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def delete_run(conn: sqlite3.Connection, root: Path, run_id: str) -> None:
     if not re.fullmatch(r"[0-9a-f]{32}", run_id):
         raise LookupError("Run not found")
@@ -165,7 +187,7 @@ def delete_run(conn: sqlite3.Connection, root: Path, run_id: str) -> None:
         run = conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()
         if not run:
             raise LookupError("Run not found")
-        if run["status"] not in ("failed", "awaiting_review", "approved"):
+        if run["status"] not in ("failed", "awaiting_story_approval", "awaiting_review", "approved"):
             raise ValueError("Only finished or failed runs can be deleted")
         if directory.parent.is_symlink() or directory.is_symlink():
             raise ValueError("Run files must stay in their own directory")
@@ -215,8 +237,11 @@ def inspect_video(path: Path) -> tuple[float, int, int]:
 
 async def add_clip(conn: sqlite3.Connection, root: Path, upload: UploadFile) -> dict[str, object]:
     clip_id = uuid.uuid4().hex
-    relative = f"clips/{clip_id}/source.mp4"
-    path = resolve_artifact(root, relative)
+    relative = f"clips/library/{clip_id}.mp4"
+    if BACKGROUND_DIR.is_symlink():
+        raise HTTPException(422, detail={"code": "invalid_clip", "message": "Background folder must not be a symlink"})
+    path = BACKGROUND_DIR / f"{clip_id}.mp4"
+    managed = resolve_artifact(root, relative)
     path.parent.mkdir(parents=True, exist_ok=True)
     digest = hashlib.sha256()
     size = 0
@@ -229,9 +254,40 @@ async def add_clip(conn: sqlite3.Connection, root: Path, upload: UploadFile) -> 
                 digest.update(chunk)
                 out.write(chunk)
         duration, width, height = inspect_video(path)
+        managed.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, managed)
     except (OSError, ValueError, KeyError, IndexError, subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
         path.unlink(missing_ok=True)
+        managed.unlink(missing_ok=True)
         raise HTTPException(422, detail={"code": "invalid_clip", "message": "Clip must be a decodable video under 500 MB"}) from exc
     conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES(?,?,?,?,?,?)", (clip_id, relative, digest.hexdigest(), duration, width, height))
     conn.commit()
     return {"id": clip_id, "duration": duration, "width": width, "height": height}
+
+
+def sync_clips(conn: sqlite3.Connection, root: Path) -> None:
+    folder = BACKGROUND_DIR
+    if folder.is_symlink():
+        raise ValueError("Clip directory must not be a symlink")
+    folder.mkdir(parents=True, exist_ok=True)
+    known = {row["path"] for row in conn.execute("SELECT path FROM clips")}
+    for relative in known:
+        if relative.startswith("clips/library/") and not (folder / Path(relative).name).is_file():
+            conn.execute("UPDATE clips SET active=0 WHERE path=?", (relative,))
+    for path in folder.iterdir():
+        if not path.is_file() or path.is_symlink() or path.suffix.lower() not in {".mp4", ".mov", ".mkv", ".webm"}:
+            continue
+        relative = f"clips/library/{path.name}"
+        if relative in known:
+            continue
+        try:
+            duration, width, height = inspect_video(path)
+            with path.open("rb") as file:
+                digest = hashlib.file_digest(file, "sha256").hexdigest()
+            managed = resolve_artifact(root, relative)
+            managed.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(path, managed)
+        except (OSError, ValueError, KeyError, IndexError, subprocess.CalledProcessError, subprocess.TimeoutExpired, json.JSONDecodeError) as exc:
+            logging.getLogger(__name__).warning("Could not add background clip %s: %s", path, exc)
+            continue
+        conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES(?,?,?,?,?,?)", (uuid.uuid4().hex, relative, digest, duration, width, height))

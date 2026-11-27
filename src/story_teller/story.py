@@ -82,7 +82,10 @@ class OpenAI:
         # OpenAI strict schemas reject defaults; preserve supported limits and validate locally too.
         def strict_shape(value: Any) -> Any:
             if isinstance(value, dict):
-                return {k: strict_shape(v) for k, v in value.items() if k != "default"}
+                shape = {k: strict_shape(v) for k, v in value.items() if k != "default"}
+                if "properties" in shape:
+                    shape["required"] = list(shape["properties"])
+                return shape
             if isinstance(value, list):
                 return [strict_shape(item) for item in value]
             return value
@@ -152,14 +155,15 @@ def evaluate_story(draft: StoryDraft, inputs: dict[str, object], llm: Ollama | O
     prompt = (
         "Evaluate this spoken story against its requested theme, premise, and length. Check an "
         "immediate specific hook, personal stakes, connected scenes that change the situation, "
-        "meaningful protagonist action, a supported development, a decisive climax in the final quarter, "
+        "meaningful protagonist action, developing curiosity through changed expectations, a supported development, a decisive climax, "
         "and a concrete payoff with brief closing tied to an earlier detail. Identify the central question "
         "and whether the ending answers it. Check plausible causality, clear relationships, natural speech, "
         "and a satisfying emotional result appropriate to the theme. For deliberate wrongdoing in workplace, "
         "family, or betrayal stories, check active resistance and visible proportionate consequences; "
         "do not demand an antagonist or punishment in wholesome stories or an everyday mystery. For mystery, "
         "check that earlier clues support the reveal; for wholesome stories, check that earlier details "
-        "support the emotional payoff. Flashbacks and twists are optional. Rate hook, coherence, and ending "
+        "support the emotional payoff. Flashbacks and twists are optional; do not require identical beats "
+        "or scene counts across stories. Rate hook, coherence, and ending "
         "from 1 to 5. Set resolved=false if the main question remains unanswered, the protagonist has no "
         "material effect, or the payoff relies on coincidence or a sudden rescuer. Set pass=false only for "
         "a specific unmet requirement; name that failure and its evidence in reasons. If all scores are at "

@@ -29,8 +29,8 @@ def test_writing_and_evaluation_persist_version(tmp_path: Path, monkeypatch):
         assert saved["story"].startswith("I found")
         assert '"pass":true' in saved["evaluation_json"]
         assert json.loads(saved["model_info_json"])["writer"] == "ollama/gemma4:12b"
-        assert json.loads(saved["model_info_json"])["writer_prompt"] == 4
-        assert json.loads(saved["model_info_json"])["evaluation_prompt"] == 3
+        assert json.loads(saved["model_info_json"])["writer_prompt"] == 5
+        assert json.loads(saved["model_info_json"])["evaluation_prompt"] == 4
         assert json.loads(saved["model_info_json"])["story_title"] == "The hidden letter"
         assert json.loads(saved["model_info_json"])["word_count"] == 390
         assert json.loads(saved["model_info_json"])["estimated_duration_seconds"] == 90
@@ -157,7 +157,7 @@ def test_each_stage_uses_its_frozen_model_and_revisions_use_writer(tmp_path: Pat
 
         def copy(draft, llm):
             seen.append(("copy", llm.model))
-            return PostingCopy(title="The hidden letter", caption="A letter changed everything", hashtags=["#story"])
+            return PostingCopy(title="The hidden letter", caption="A letter changed everything", hashtags=["#story"], pinned_comment="Would you open the hidden letter?")
 
         monkeypatch.setattr("story_teller.pipeline.generate_story", write)
         monkeypatch.setattr("story_teller.pipeline.evaluate_story", evaluate)
@@ -172,4 +172,6 @@ def test_each_stage_uses_its_frozen_model_and_revisions_use_writer(tmp_path: Pat
         info = json.loads(saved["model_info_json"])
         assert (info["writer"], info["evaluator"], info["posting"]) == (
             "openai/gpt-6-luna", "ollama/gemma4:12b", "openai/gpt-6.1-terra")
+        assert info["posting_prompt"] == 3
         assert json.loads(saved["posting_copy_json"])["title"] == "The hidden letter"
+        assert json.loads(saved["posting_copy_json"])["pinned_comment"] == "Would you open the hidden letter?"

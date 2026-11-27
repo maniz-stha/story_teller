@@ -7,7 +7,7 @@ from fastapi.testclient import TestClient
 
 from story_teller.app import check_environment, create_app
 from story_teller.pipeline import _model
-from story_teller.posting import PostingCopy
+from story_teller.posting import GeneratedPostingCopy, PostingCopy
 from story_teller.service import Settings, connect, create_run, save_settings
 from story_teller.story import Evaluation, Ollama, OpenAI, StoryOutput
 from story_teller.worker import process_next_run
@@ -99,7 +99,7 @@ def test_openai_evaluation_schema_limits_reason_count(monkeypatch):
         assert OpenAI("gpt-6-luna").structured("evaluate", Evaluation).reasons == ["The ending is unresolved."]
 
 
-@pytest.mark.parametrize("schema", [StoryOutput, Evaluation, PostingCopy])
+@pytest.mark.parametrize("schema", [StoryOutput, Evaluation, PostingCopy, GeneratedPostingCopy])
 def test_openai_schema_shape_and_refusal(tmp_path, monkeypatch, schema):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")

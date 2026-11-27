@@ -20,7 +20,11 @@ def migrate(conn: sqlite3.Connection) -> None:
     if version == 1:
         sql = (Path(__file__).parent / "migrations" / "0002.sql").read_text()
         conn.executescript("BEGIN IMMEDIATE;\n" + sql + "\nPRAGMA user_version=2;\nCOMMIT;")
-    elif version != 2:
+        version = 2
+    if version == 2:
+        sql = (Path(__file__).parent / "migrations" / "0003.sql").read_text()
+        conn.executescript("BEGIN IMMEDIATE;\n" + sql + "\nPRAGMA user_version=3;\nCOMMIT;")
+    elif version != 3:
         raise RuntimeError(f"Unsupported database version: {version}")
 
 

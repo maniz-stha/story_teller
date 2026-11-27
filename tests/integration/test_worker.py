@@ -1,6 +1,7 @@
 from pathlib import Path
 
-from story_teller.service import connect, create_run
+from story_teller import service, worker
+from story_teller.service import connect, create_run, request_revision
 from story_teller.worker import process_next_run
 
 
@@ -13,11 +14,21 @@ def test_worker_runs_each_stage_and_records_attempts(tmp_path: Path):
 
         def fake(stage, conn, root, run, revision):
             seen.append(stage)
+            if stage == "evaluating":
+                conn.execute("UPDATE revisions SET story='I found it',evaluation_json=? WHERE id=?", ('{"pass":true}', revision["id"]))
 
+        assert process_next_run(conn, tmp_path, fake)
+        assert seen == ["writing", "evaluating"]
+        assert conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()[0] == "awaiting_story_approval"
+        assert conn.execute("SELECT COUNT(*) FROM stage_attempts WHERE status='complete'").fetchone()[0] == 2
+        service.approve_story(conn, run_id, 1)
         assert process_next_run(conn, tmp_path, fake)
         assert seen == ["writing", "evaluating", "narrating", "timing", "rendering", "copy"]
         assert conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()[0] == "awaiting_review"
-        assert conn.execute("SELECT COUNT(*) FROM stage_attempts WHERE status='complete'").fetchone()[0] == 6
+        assert request_revision(conn, run_id, "story", "Change the ending") == 2
+        assert process_next_run(conn, tmp_path, fake)
+        assert seen[-2:] == ["writing", "evaluating"]
+        assert conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()[0] == "awaiting_story_approval"
 
 
 def test_failed_stage_is_retryable_without_rerunning_success(tmp_path: Path):
@@ -27,9 +38,13 @@ def test_failed_stage_is_retryable_without_rerunning_success(tmp_path: Path):
         run_id = create_run(conn, {}, 1)
 
         def fail(stage, conn, root, run, revision):
+            if stage == "evaluating":
+                conn.execute("UPDATE revisions SET story='I found it',evaluation_json=? WHERE id=?", ('{"pass":true}', revision["id"]))
             if stage == "timing":
                 raise ValueError("transcript mismatch")
 
+        assert process_next_run(conn, tmp_path, fail)
+        service.approve_story(conn, run_id, 1)
         assert process_next_run(conn, tmp_path, fail)
         assert conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()[0] == "failed"
         conn.execute("UPDATE runs SET status='queued' WHERE id=?", (run_id,))
@@ -37,3 +52,9 @@ def test_failed_stage_is_retryable_without_rerunning_success(tmp_path: Path):
         seen = []
         assert process_next_run(conn, tmp_path, lambda stage, *_: seen.append(stage))
         assert seen == ["timing", "rendering", "copy"]
+
+
+def test_orphan_worker_exits_before_claiming_another_run(tmp_path: Path, monkeypatch):
+    monkeypatch.setattr(worker.os, "getppid", lambda: 1)
+    monkeypatch.setattr(worker.time, "sleep", lambda _: (_ for _ in ()).throw(AssertionError("orphan kept running")))
+    worker.worker_loop(tmp_path)

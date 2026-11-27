@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from story_teller.service import connect, create_run
+from story_teller.service import approve_story, connect, create_run
 from story_teller.worker import process_next_run, recover_interrupted
 
 
@@ -26,6 +26,10 @@ def test_retry_after_promoted_artifact_reuses_completed_stages(tmp_path: Path):
         revision_id = conn.execute("SELECT current_revision_id FROM runs WHERE id=?", (run_id,)).fetchone()[0]
         for stage in ("writing", "evaluating"):
             conn.execute("INSERT INTO stage_attempts(revision_id,stage,attempt,status) VALUES(?,?,1,'complete')", (revision_id, stage))
+        conn.execute("UPDATE revisions SET story='I found it',evaluation_json=? WHERE id=?", ('{"pass":true}', revision_id))
+        conn.execute("UPDATE runs SET status='awaiting_story_approval' WHERE id=?", (run_id,))
+        conn.commit()
+        approve_story(conn, run_id, 1)
         conn.execute("INSERT INTO stage_attempts(revision_id,stage,attempt,status) VALUES(?,'narrating',1,'running')", (revision_id,))
         conn.execute("UPDATE runs SET status='narrating' WHERE id=?", (run_id,))
         conn.commit()
@@ -45,3 +49,23 @@ def test_retry_after_promoted_artifact_reuses_completed_stages(tmp_path: Path):
         assert process_next_run(conn, tmp_path, stage_fn)
         assert seen == ["narrating", "timing", "rendering", "copy"]
         assert artifact.read_bytes() == b"replacement"
+
+
+def test_retry_after_evaluation_crash_still_waits_for_story_approval(tmp_path: Path):
+    with connect(tmp_path) as conn:
+        conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES('c','clips/c/source.mp4','sha',10,320,240)")
+        conn.commit()
+        run_id = create_run(conn, {}, 1)
+        revision_id = conn.execute("SELECT current_revision_id FROM runs WHERE id=?", (run_id,)).fetchone()[0]
+        for stage in ("writing", "evaluating"):
+            conn.execute("INSERT INTO stage_attempts(revision_id,stage,attempt,status) VALUES(?,?,1,'complete')", (revision_id, stage))
+        conn.execute("UPDATE revisions SET story='I found it',evaluation_json=? WHERE id=?", ('{"pass":true}', revision_id))
+        conn.execute("UPDATE runs SET status='evaluating' WHERE id=?", (run_id,))
+        conn.commit()
+        recover_interrupted(conn)
+        conn.execute("UPDATE runs SET status='queued' WHERE id=?", (run_id,))
+        conn.commit()
+        seen = []
+        assert process_next_run(conn, tmp_path, lambda stage, *_: seen.append(stage))
+        assert seen == []
+        assert conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()[0] == "awaiting_story_approval"

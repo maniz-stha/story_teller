@@ -2,7 +2,14 @@ import socket
 
 import pytest
 
+from story_teller import service
+
 _network_patch = pytest.MonkeyPatch()
+
+
+@pytest.fixture(autouse=True)
+def isolated_background_videos(tmp_path, monkeypatch):
+    monkeypatch.setattr(service, "BACKGROUND_DIR", tmp_path / "background_videos")
 
 
 def _reject_network(*args, **kwargs):
