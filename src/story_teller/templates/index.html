@@ -8,7 +8,7 @@
 </head>
 <body>
   <main>
-    <header><p class="eyebrow">LOCAL VIDEO STUDIO</p><h1>Story Teller</h1><p>Generate a narrated story, review the preview, then export it for manual posting.</p></header>
+    <header><p class="eyebrow">LOCAL VIDEO STUDIO</p><h1>Story Teller</h1><p>Review the story before narration, then review the video before downloading it for manual posting.</p></header>
     <div id="notice" role="status" aria-live="polite"></div>
     <div class="grid">
       <section class="card">
@@ -44,9 +44,10 @@
         <div class="preview"><video id="video" controls playsinline preload="metadata"></video></div>
         <h3>Story</h3><h4 id="story-title"></h4><p id="story-meta"></p><p id="story" class="story"></p><p><strong>Continuity note:</strong> <span id="continuity-note"></span></p><p id="evaluation" class="story"></p>
         <label>Story feedback <textarea id="story-note" rows="2" placeholder="Describe what to change"></textarea></label><button type="button" id="revise-story">Revise story</button>
+        <div class="actions"><button type="button" class="primary" id="approve-story" disabled>Approve story and create video</button></div>
         <label>Subtitle position <textarea id="position-note" rows="2" placeholder="Move captions higher, middle, or lower"></textarea></label><button type="button" id="revise-position">Change position</button>
         <h3>Posting copy</h3><p>Edit the caption and pinned comment, then copy the comment when you post the video.</p><div id="copy"></div><button type="button" id="save-copy">Save copy edits</button>
-        <div class="actions"><button type="button" class="primary" id="approve">Approve</button><a id="download" href="#" download>Download approved video</a></div>
+        <div class="actions"><button type="button" class="primary" id="approve">Approve video</button><a id="download" href="#" download>Download approved video</a></div>
       </section>
     </div>
   </main>

@@ -32,6 +32,10 @@ def process_next_run(conn: sqlite3.Connection, root: Path, stage_fn: StageFn | N
     revision = conn.execute("SELECT * FROM revisions WHERE id=?", (run["current_revision_id"],)).fetchone()
     stages = ("rendering",) if revision["kind"] == "subtitle_position" else STAGES
     for stage in stages:
+        if stage == "narrating" and run["story_approved_revision_id"] != revision["id"]:
+            conn.execute("UPDATE runs SET status='awaiting_story_approval',updated_at=CURRENT_TIMESTAMP WHERE id=?", (run["id"],))
+            conn.commit()
+            return True
         completed = conn.execute("SELECT 1 FROM stage_attempts WHERE revision_id=? AND stage=? AND status='complete'", (revision["id"], stage)).fetchone()
         if completed:
             continue

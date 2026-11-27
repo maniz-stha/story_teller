@@ -66,6 +66,7 @@ async function runs() {
   const current = items.find(item => item.id === selected);
   $('#generation-progress').textContent = submitting ? 'Submitting video generation…' : active.length
     ? active.map(item => `${item.title || item.theme} · ${stages[item.status]} · ${item.id.slice(0,8)}`).join('\n')
+    : current?.status === 'awaiting_story_approval' ? 'Story ready for approval before narration.'
     : current?.status === 'awaiting_review' ? 'Video ready for review.'
     : current?.status === 'failed' ? 'Generation failed. See Review for the reason and retry.'
     : 'No video generation in progress.';
@@ -98,12 +99,20 @@ async function refresh() {
     if (run.status === 'awaiting_review' || run.status === 'approved') {
       shownVideo = `${currentRun}-${currentRevision}`;
       $('#video').src = `${api}/runs/${currentRun}/video?preview=${Date.now()}`;
+    } else {
+      shownVideo = '';
+      $('#video').removeAttribute('src'); $('#video').load();
     }
   }
+  $('#approve-story').disabled = run.status !== 'awaiting_story_approval';
   $('#approve').disabled = run.status !== 'awaiting_review';
+  $('#revise-story').disabled = !['awaiting_story_approval', 'awaiting_review', 'approved'].includes(run.status);
+  $('#revise-position').disabled = !['awaiting_review', 'approved'].includes(run.status);
+  $('#save-copy').disabled = run.status !== 'awaiting_review';
   $('#retry').disabled = run.status !== 'failed';
-  $('#delete-run').disabled = !['failed', 'awaiting_review', 'approved'].includes(run.status);
+  $('#delete-run').disabled = !['failed', 'awaiting_story_approval', 'awaiting_review', 'approved'].includes(run.status);
   $('#download').href = run.approved_revision_id ? `${api}/runs/${currentRun}/video?download=true` : '#';
+  $('#download').textContent = run.approved_revision_id && run.status !== 'approved' ? 'Download previous approved video' : 'Download approved video';
 }
 async function act(action) { try { await action(); notice('Saved.'); } catch (error) { notice(error.message); } }
 $('#save').onclick = () => act(async () => { await request('/settings', {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload())}); });
@@ -137,6 +146,7 @@ $('#runs').onchange = () => { currentRun = $('#runs').value; currentRevision = n
 async function revise(kind, note) { await request(`/runs/${currentRun}/revisions`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind,note})}); currentRevision = null; shownVideo = ''; shownStatus = null; await refresh(); }
 $('#revise-story').onclick = () => act(() => revise('story',$('#story-note').value));
 $('#revise-position').onclick = () => act(() => revise('subtitle_position',$('#position-note').value));
+$('#approve-story').onclick = () => act(async () => { await request(`/runs/${currentRun}/approve-story`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision_no:currentRevision})}); await refresh(); });
 $('#approve').onclick = () => act(async () => { await request(`/runs/${currentRun}/approve`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({revision_no:currentRevision})}); await refresh(); });
 $('#retry').onclick = () => act(async () => { await request(`/runs/${currentRun}/retry`,{method:'POST'}); await refresh(); });
 $('#delete-run').onclick = () => {
@@ -149,7 +159,7 @@ $('#delete-run').onclick = () => {
     $('#video').removeAttribute('src'); $('#video').load();
     for (const id of ['story-title', 'story-meta', 'story', 'continuity-note', 'evaluation']) $(`#${id}`).textContent = '';
     $('#copy').replaceChildren();
-    $('#approve').disabled = true; $('#retry').disabled = true; $('#delete-run').disabled = true;
+    $('#approve-story').disabled = true; $('#approve').disabled = true; $('#retry').disabled = true; $('#delete-run').disabled = true;
     $('#download').href = '#';
     await runs();
   });

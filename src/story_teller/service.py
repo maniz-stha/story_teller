@@ -124,8 +124,10 @@ def request_revision(conn: sqlite3.Connection, run_id: str, kind: str, note: str
     conn.execute("BEGIN IMMEDIATE")
     try:
         run = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
-        if not run or run["status"] not in ("awaiting_review", "approved"):
+        if not run or run["status"] not in ("awaiting_story_approval", "awaiting_review", "approved"):
             raise ValueError("Run is not ready for revision")
+        if kind == "subtitle_position" and run["status"] == "awaiting_story_approval":
+            raise ValueError("No video exists to reposition")
         parent = conn.execute("SELECT * FROM revisions WHERE id=?", (run["current_revision_id"],)).fetchone()
         number = parent["number"] + 1
         new_id = uuid.uuid4().hex
@@ -158,6 +160,23 @@ def approve_revision(conn: sqlite3.Connection, run_id: str, revision_no: int) ->
         raise
 
 
+def approve_story(conn: sqlite3.Connection, run_id: str, revision_no: int) -> None:
+    conn.execute("BEGIN IMMEDIATE")
+    try:
+        run = conn.execute("SELECT * FROM runs WHERE id=?", (run_id,)).fetchone()
+        revision = conn.execute("SELECT * FROM revisions WHERE run_id=? AND number=?", (run_id, revision_no)).fetchone()
+        if (not run or not revision or run["status"] != "awaiting_story_approval"
+                or run["current_revision_id"] != revision["id"] or not revision["story"]
+                or not revision["evaluation_json"] or not json.loads(revision["evaluation_json"]).get("pass")
+                or revision["audio_path"] or revision["video_path"]):
+            raise ValueError("Only the latest evaluated story can be approved")
+        conn.execute("UPDATE runs SET status='queued',story_approved_revision_id=?,updated_at=CURRENT_TIMESTAMP WHERE id=?", (revision["id"], run_id))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+
+
 def delete_run(conn: sqlite3.Connection, root: Path, run_id: str) -> None:
     if not re.fullmatch(r"[0-9a-f]{32}", run_id):
         raise LookupError("Run not found")
@@ -168,7 +187,7 @@ def delete_run(conn: sqlite3.Connection, root: Path, run_id: str) -> None:
         run = conn.execute("SELECT status FROM runs WHERE id=?", (run_id,)).fetchone()
         if not run:
             raise LookupError("Run not found")
-        if run["status"] not in ("failed", "awaiting_review", "approved"):
+        if run["status"] not in ("failed", "awaiting_story_approval", "awaiting_review", "approved"):
             raise ValueError("Only finished or failed runs can be deleted")
         if directory.parent.is_symlink() or directory.is_symlink():
             raise ValueError("Run files must stay in their own directory")

@@ -13,6 +13,7 @@ from .service import (
     Settings,
     add_clip,
     approve_revision,
+    approve_story,
     connect,
     create_run,
     delete_run,
@@ -172,6 +173,15 @@ def router(root: Path) -> APIRouter:
             except ValueError as exc:
                 raise HTTPException(409, detail={"code": "approval_conflict", "message": str(exc)}) from exc
         return {"status": "approved"}
+
+    @api.post("/runs/{run_id}/approve-story", status_code=202)
+    def approve_story_review(run_id: str, request: ApprovalRequest) -> dict[str, str]:
+        with connect(root) as conn:
+            try:
+                approve_story(conn, run_id, request.revision_no)
+            except ValueError as exc:
+                raise HTTPException(409, detail={"code": "story_approval_conflict", "message": str(exc)}) from exc
+        return {"status": "queued"}
 
     @api.get("/runs/{run_id}/video")
     def video(run_id: str, download: bool = False) -> FileResponse:

@@ -4,7 +4,13 @@ from pathlib import Path
 from story_teller.captions import TimedWord
 from story_teller.pipeline import run_stage
 from story_teller.posting import PostingCopy
-from story_teller.service import approve_revision, connect, create_run, request_revision
+from story_teller.service import (
+    approve_revision,
+    approve_story,
+    connect,
+    create_run,
+    request_revision,
+)
 from story_teller.speech import AudioInfo
 from story_teller.story import Evaluation, StoryDraft
 from story_teller.worker import process_next_run
@@ -30,6 +36,10 @@ def test_generate_reposition_approve_survives_restart(tmp_path: Path, monkeypatc
         conn.execute("INSERT INTO clips(id,path,sha256,duration,width,height) VALUES('c','clips/c/source.mp4','sha',0.3,320,240)")
         conn.commit()
         run_id = create_run(conn, {}, 1)
+        assert process_next_run(conn, tmp_path, run_stage)
+        row = conn.execute("SELECT r.status,v.audio_path,v.video_path FROM runs r JOIN revisions v ON v.id=r.current_revision_id WHERE r.id=?", (run_id,)).fetchone()
+        assert tuple(row) == ("awaiting_story_approval", None, None)
+        approve_story(conn, run_id, 1)
         assert process_next_run(conn, tmp_path, run_stage)
         assert conn.execute("SELECT posting_copy_json FROM revisions WHERE run_id=? AND number=1", (run_id,)).fetchone()[0].startswith('{"title":')
         first = conn.execute("SELECT audio_path FROM revisions WHERE run_id=? AND number=1", (run_id,)).fetchone()[0]

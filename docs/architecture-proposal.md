@@ -76,11 +76,11 @@ Pydantic is already part of the proposed FastAPI stack. This uses it for data co
 ## 4. Job and revision behavior
 
 - **Submission:** Resolve and validate all inputs once. Save the exact values, random seed, selected theme, selected clip ID, model identifiers, and prompt versions. Return a run ID immediately.
-- **Execution:** The worker claims the oldest queued run with a short SQLite transaction. It writes each stage result to a temporary file, validates it, atomically promotes it into a revision directory, then records the completed stage. A crash leaves at most the current stage incomplete.
+- **Execution:** The worker claims the oldest queued run with a short SQLite transaction. It writes each stage result to a temporary file, validates it, atomically promotes it into a revision directory, then records the completed stage. After evaluation it pauses until the current passing story revision is approved. A crash leaves at most the current stage incomplete.
 - **Recovery:** On restart, mark an abandoned active attempt as interrupted. Retain successful stage artifacts and requeue only the incomplete stage when the owner retries. Never silently approve or replace a prior output.
-- **Story feedback:** Create a new revision carrying the note; rewrite the story, then rerun evaluation, narration, timing, render, and posting copy. Preserve the old preview in history, but only the current preview is approvable.
+- **Story feedback:** Create a new revision carrying the note; rewrite and evaluate the story, then wait for story approval before narration, timing, render, and posting copy. Preserve the old preview in history, but only the current preview is approvable.
 - **Subtitle-position feedback:** Create a new revision reusing the same script, audio, and word timing; regenerate styled captions and render only. Position is a constrained value in the layout model, not a raw FFmpeg expression from the user's note.
-- **Approval:** Set `approved_revision_id` in one transaction only if that revision is current and reviewable. Final export points to immutable approved files. An unapproved revision cannot overwrite them.
+- **Approval:** Set `story_approved_revision_id` only for the current passing story revision before queuing media production. Set `approved_revision_id` in one transaction only if the latest preview is current and reviewable. Final export points to immutable approved files. An unapproved revision cannot overwrite them.
 - **Capacity:** The launcher holds a single-instance OS lock and supervises one worker process; a second launcher exits rather than starting another worker. One job at a time, a bounded queue, finite stage retries, and explicit failure reasons prevent concurrent model loads from exhausting memory.
 
 ## 5. Data model and file layout
@@ -91,7 +91,7 @@ Use SQLite for metadata, state, and small text; use local files for clips, WAV, 
 | --- | --- | --- |
 | `settings` | `key`, `value_json`, `updated_at` | Single-user defaults and local preferences. Validate on read and write. |
 | `clips` | `id`, relative path, SHA-256, duration, width, height, active flag | Uploaded library and source-media validation. Removing a clip deactivates it; existing revisions keep their reference. |
-| `runs` | `id`, status, resolved-input JSON, seed, selected theme/clip ID, current revision ID, approved revision ID, timestamps, last error | One generation request and its lifecycle. |
+| `runs` | `id`, status, resolved-input JSON, seed, selected theme/clip ID, current revision ID, story-approved revision ID, final-approved revision ID, timestamps, last error | One generation request and its lifecycle. |
 | `revisions` | `id`, run ID, number, request type/note, parent ID, story text/summary, narrator identity, evaluation JSON, audio duration, subtitle placement, posting-copy JSON, artifact paths, timestamps | Story/video versions and review history; freeze a version once it awaits review. |
 | `stage_attempts` | `id`, revision ID, stage, attempt number, status, start/end times, error code/message | Recovery and diagnostics without exposing raw stack traces in the UI. |
 
@@ -113,6 +113,7 @@ The web UI uses the same JSON API that the CLI calls. Keep endpoints under `/api
 | `POST /api/v1/runs/{id}/revisions` | Submit a story or subtitle-position change request. |
 | `PUT /api/v1/runs/{id}/revisions/{n}/posting-copy` | Edit the shared title, caption, and hashtags while the revision awaits review. Body is one posting-copy object. |
 | `POST /api/v1/runs/{id}/retry` | Retry a failed or interrupted stage. |
+| `POST /api/v1/runs/{id}/approve-story` | Approve the latest evaluated story revision and queue media production. |
 | `POST /api/v1/runs/{id}/approve` | Approve the current revision, with its revision ID supplied for stale-request protection. |
 | `GET /api/v1/runs/{id}/video` | Stream the current reviewable or approved MP4; use a separate download disposition for export. |
 

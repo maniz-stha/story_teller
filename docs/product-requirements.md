@@ -8,7 +8,7 @@
 
 ## 1. Purpose
 
-Generate short, first-person story videos from a small set of inputs, with narration, timed subtitles, and randomly selected user-supplied background footage. The local app should do the production work and present a finished draft for review. After approval, it should provide a video and posting copy for manual upload to YouTube Shorts, Instagram Reels, and TikTok.
+Generate short, first-person story videos from a small set of inputs, with narration, timed subtitles, and randomly selected user-supplied background footage. The local app should ask for approval of the evaluated story before media production, then present the finished video for a second approval before download. After final approval, it should provide a video and posting copy for manual upload to YouTube Shorts, Instagram Reels, and TikTok.
 
 ## 2. Goals and boundaries
 
@@ -63,16 +63,17 @@ The story opens with a specific question, develops curiosity through connected c
 1. **Prepare:** The user uploads one or more background clips, sets defaults, and starts a run from the CLI or local web app. The app records the resolved input values and randomly selected theme for reproducibility.
 2. **Plan and write:** A story-writing agent creates a brief plot plan and first-person script. It records the narrator's intended identity and a concise plot/twist summary. The prompt includes recent stories to avoid, the selected theme, optional premise, tone, and word budget.
 3. **Evaluate and revise:** A separate story-evaluation step checks coherence, believable causality, opening hook, connected scenes, late climax, theme-appropriate payoff, adherence to inputs, and similarity to recent plots. A rejection should identify a specific unmet requirement. Deterministic checks cover required fields and approximate length. On failure, revise automatically with evaluator feedback, with a finite retry limit. If no draft passes, save a flagged story draft and a reason; do not continue to audio or silently mark the run complete.
-4. **Narrate:** Choose the female or male local narrator voice from story metadata. Generate audio, measure its duration, and correct material duration or speech-quality problems before proceeding. The stored script and audio must remain associated with the same story version.
-5. **Time subtitles:** Derive word timing from the *final* narration audio, after any speed adjustment. Compare the recognized words with the script and flag material omissions or additions. Default to groups of five to seven words, allowing shorter groups at pauses, sentence endings, or line-length limits. Save the timed subtitle data separately from its visual position.
-6. **Render:** Pick an uploaded clip randomly, mute its original audio, and fit it into a portrait frame. Use the final story-audio duration as the video duration: trim a longer background clip at that point; loop a shorter clip and trim the last repeat at that point. Mix the narration and burn in readable subtitles. Check the resulting video for valid audio, dimensions, subtitle presence, and an ending that matches the audio (allowing only frame/codec rounding).
-7. **Prepare posting copy:** Generate one shared title, caption, hashtag set, and pinned comment for manual posting. The caption invites a story-specific response; the pinned comment asks a concrete follow-up question. Show them with the video preview and keep them editable before approval. Engagement prompts do not enter the narration.
-8. **Review:** The user watches the saved preview and may approve it or submit natural-language change requests for the story or subtitle position. Story changes create a new story version and rerun evaluation, narration, timing, rendering, and posting copy. Position changes rerender the current audio and subtitles only. Each revision creates a new preview; only the latest version can be approved.
-9. **Export:** Approval marks the latest preview as final and makes its video and posting copy available to download and copy. The user uploads them manually.
+4. **Approve story:** Show the final evaluated story, title, summary, and evaluation. The owner may request a story revision or approve the current revision. Only approval of the latest passing revision starts media production; a revised story repeats this gate.
+5. **Narrate:** Choose the female or male local narrator voice from story metadata. Generate audio, measure its duration, and correct material duration or speech-quality problems before proceeding. The stored script and audio must remain associated with the same story version.
+6. **Time subtitles:** Derive word timing from the *final* narration audio, after any speed adjustment. Compare the recognized words with the script and flag material omissions or additions. Default to groups of five to seven words, allowing shorter groups at pauses, sentence endings, or line-length limits. Save the timed subtitle data separately from its visual position.
+7. **Render:** Pick an uploaded clip randomly, mute its original audio, and fit it into a portrait frame. Use the final story-audio duration as the video duration: trim a longer background clip at that point; loop a shorter clip and trim the last repeat at that point. Mix the narration and burn in readable subtitles. Check the resulting video for valid audio, dimensions, subtitle presence, and an ending that matches the audio (allowing only frame/codec rounding).
+8. **Prepare posting copy:** Generate one shared title, caption, hashtag set, and pinned comment for manual posting. The caption invites a story-specific response; the pinned comment asks a concrete follow-up question. Show them with the video preview and keep them editable before approval. Engagement prompts do not enter the narration.
+9. **Review:** The user watches the saved preview and may approve it or submit natural-language change requests for the story or subtitle position. Story changes create a new story version and rerun evaluation and story approval before narration, timing, rendering, and posting copy. Position changes rerender the current audio and subtitles only. Each revision creates a new preview; only the latest version can be approved.
+10. **Export:** Approval marks the latest preview as final and makes its video and posting copy available to download and copy. The user uploads them manually.
 
 ### Run states
 
-`queued` → `writing` → `evaluating` → `narrating` → `timing` → `rendering` → `awaiting_review` → `approved`.
+`queued` → `writing` → `evaluating` → `awaiting_story_approval` → `narrating` → `timing` → `rendering` → `copy` → `awaiting_review` → `approved`.
 
 Any stage can move to `failed` with a clear reason and a retry action. A revision moves an `awaiting_review` draft through only the stages affected by that request. A rejected preview remains in history but cannot be exported as approved.
 
@@ -82,7 +83,7 @@ Any stage can move to `failed` with a clear reason and a retry action. A revisio
 
 - Configure defaults; upload, list, and remove background clips; start runs with optional overrides.
 - Show run status and actionable failure reasons. Identify runs by a clear, concise story title once generated; fall back to the theme before a title exists.
-- Preview the video and posting copy; request story or subtitle-position changes; approve and download the latest version.
+- Read and approve the evaluated story before narration; then preview the video and posting copy, request story or subtitle-position changes, and approve the latest video before download.
 - Make subtitle placement visible against a portrait preview, including areas likely covered by platform controls. Position requests should support plain-language directions such as moving captions higher.
 
 ### Command line
@@ -116,7 +117,7 @@ These are product calls for the draft PRD, not decisions already made by the own
 2. Each preview contains understandable narration for the approved script and synchronized short captions. Its video ends with the final story audio: longer backgrounds are trimmed, and shorter backgrounds are looped then trimmed, with only frame/codec rounding allowed.
 3. Weak story drafts are revised automatically up to the configured limit; a run that cannot pass stops with its reason and no misleading finished state.
 4. A story change request produces a newly evaluated script and corresponding audio, captions, video, and copy. A subtitle-position request preserves the script and narration while producing a new rendered preview.
-5. Approval applies only to the latest preview. Approved output remains available for download; no phase-one action uploads it to a platform.
+5. Story approval applies only to the latest passing story revision and precedes narration. Final approval applies only to the latest preview. Approved output remains available for download; no phase-one action uploads it to a platform.
 6. A subsequent run uses prior approved-story summaries to avoid obvious repetition and records its selected random theme and background clip.
 7. Local model or rendering failures are visible and retryable without losing prior approved output.
 

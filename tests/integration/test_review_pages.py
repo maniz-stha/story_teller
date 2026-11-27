@@ -9,8 +9,25 @@ from story_teller.app import create_app
 def test_review_page_exposes_workflow_controls(tmp_path: Path):
     response = TestClient(create_app(tmp_path)).get("/")
     assert response.status_code == 200
-    for label in ("Upload clip", "Generate video", "Story feedback", "Subtitle position", "Approve", "Download"):
+    for label in ("Upload clip", "Generate video", "Story feedback", "Subtitle position", "Approve story", "Approve video", "Download"):
         assert label in response.text
+
+
+def test_story_review_enables_only_story_approval(tmp_path: Path):
+    html = TestClient(create_app(tmp_path)).get("/").text
+    assert 'id="approve-story"' in html
+    script = r"""
+const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
+const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
+const elements = new Map();
+function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'',value:'',disabled:false,href:'',src:'old',replaceChildren(){},removeAttribute(key){this[key]=''},load(){}}); return elements.get(id); }
+let status = 'awaiting_story_approval'; let approvedId = null; const posts = [];
+const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},window:{addEventListener(){}},setInterval(){},fetch:async (url,options={})=>{if(options.method==='POST') posts.push(url); return {ok:true,status:202,json:async()=>url.endsWith('/revisions/1') ? {story:'I found it',summary:'A clue',model_info:{story_title:'The clue'},evaluation:{pass:true,reasons:[]},posting_copy:null} : url.endsWith('/runs/r') ? {status,revisions:[{number:1}],error:null,approved_revision_id:approvedId} : []}}});
+vm.runInContext(source,context); vm.runInContext("currentRun='r'",context);
+(async()=>{await vm.runInContext('refresh()',context); assert.equal(element('#approve-story').disabled,false); assert.equal(element('#approve').disabled,true); assert.equal(element('#video').src,''); assert.equal(element('#download').href,'#'); await element('#approve-story').onclick(); assert.deepEqual(posts,['/api/v1/runs/r/approve-story']); status='awaiting_review'; await vm.runInContext('refresh()',context); assert.equal(element('#approve-story').disabled,true); assert.equal(element('#approve').disabled,false); approvedId='old'; status='awaiting_story_approval'; await vm.runInContext('refresh()',context); assert.match(element('#download').textContent,/previous approved video/i);})().catch(error=>{console.error(error);process.exitCode=1});
+"""
+    result = subprocess.run(["node", "-e", script], check=False, capture_output=True, text=True)
+    assert result.returncode == 0, result.stderr
 
 
 def test_failed_story_is_loaded_after_queued_state():
@@ -18,7 +35,7 @@ def test_failed_story_is_loaded_after_queued_state():
 const fs = require('fs'); const vm = require('vm'); const assert = require('assert');
 const source = fs.readFileSync('src/story_teller/static/app.js','utf8').split('Promise.all([request')[0];
 const elements = new Map();
-function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'',value:'',replaceChildren(){},querySelectorAll(){return []}}); return elements.get(id); }
+function element(id) { if (!elements.has(id)) elements.set(id,{textContent:'',value:'',replaceChildren(){},removeAttribute(){},load(){},querySelectorAll(){return []}}); return elements.get(id); }
 let status = 'queued';
 const context = vm.createContext({document:{querySelector:element},Option:function(label,value){return {label,value}},window:{addEventListener(){}},setInterval(){},fetch:async url=>({ok:true,status:200,json:async()=>url.endsWith('/revisions/1') ? {story:status==='failed'?'I found a secret':null,summary:'A clue was resolved.',model_info:{story_title:'The clue',word_count:390,estimated_duration_seconds:90},evaluation:status==='failed'?{reasons:['Too short']}:null,posting_copy:null} : url.endsWith('/runs/r') ? {status,revisions:[{number:1}],error:status==='failed'?'evaluating failed':null,approved_revision_id:null} : []})});
 vm.runInContext(source,context); vm.runInContext("currentRun='r'",context);
